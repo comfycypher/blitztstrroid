@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Asteroid AAA Assault - Score Fix</title>
+    <title>Asteroid AAA Assault - Slower Pace</title>
     <style>
         /* CSS Styles unchanged */
         body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; color: white; }
@@ -1170,103 +1170,113 @@ void main(void)\r
             if (typeof PIXI === 'undefined') { console.error("PIXI Missing!"); alert("PIXI Missing!"); return; }
             console.log("PIXI OK Version:", PIXI.VERSION);
 
-            // --- Config (unchanged) ---
+            // --- Config ---
             const GAME_WIDTH = window.innerWidth; const GAME_HEIGHT = window.innerHeight;
             const PLAYER_BASE_SPEED = 2.5; const ASTEROID_SPEED_BASE = 0.8; const LASER_SPEED = 9;
-            const MAX_ASTEROIDS = 20; const ASTEROID_SPAWN_RATE = 0.02;
+            const MAX_ASTEROIDS = 20; const ASTEROID_SPAWN_RATE = 0.02; // Rate of *initial* spawns
             const LASER_COOLDOWN = 120; const FRAGMENT_SPEED_BOOST = 0.3;
             const STAR_COUNT = 200; const STAR_BASE_SPEED = 0.5;
-            const HEALING_ORB_SPEED = 0.7; const HEALING_ORB_RADIUS = 12; const MAX_HEALING_ORBS = 1; const HEALING_ORB_SPAWN_CHANCE = 0.0015;
+            // --- MODIFIED: Further reduced healing orb speed ---
+            const HEALING_ORB_SPEED = 0.5; // Reduced more from 0.7
+            // --- End Modification ---
+            const HEALING_ORB_RADIUS = 12; const MAX_HEALING_ORBS = 1; const HEALING_ORB_SPAWN_CHANCE = 0.0015;
             const ENEMY_ORB_SPEED_Y = 0.5; const ENEMY_ORB_SPEED_X = 0.3; const ENEMY_ORB_RADIUS = 15; const ENEMY_ORB_POINTS = 150; const ENEMY_ORB_HEALTH = 3; const MAX_ENEMY_ORBS = 2; const ENEMY_ORB_SPAWN_CHANCE = 0.002; const ENEMY_ORB_SHOOT_COOLDOWN = 1500; const ENEMY_LASER_SPEED = 4;
             const PLAYER_BOTTOM_MARGIN = 100;
 
             // --- Fixed Speed Multipliers ---
-            const shipSpeedMultiplier = 1.0;
-            const asteroidSpeedMultiplier = 1.0;
+            const shipSpeedMultiplier = 1.0; // Keep ship speed as medium equivalent base * 1.0
+            // --- MODIFIED: Set asteroid multiplier to slow equivalent ---
+            const asteroidSpeedMultiplier = 0.6; // Fixed at 'slow' equivalent
+            // --- End Modification ---
 
-            // --- Asteroid Size Definitions (unchanged) ---
-            const ASTEROID_SIZES = { /* ... */ large: { baseRadius: 35, points: 20, health: 3, fragments: 3, fragmentSizeKey: 'medium', color: 0xAAAAAA }, medium: { baseRadius: 22, points: 50, health: 2, fragments: 2, fragmentSizeKey: 'small', color: 0x999999 }, small: { baseRadius: 12, points: 100, health: 1, fragments: 0, fragmentSizeKey: null, color: 0x888888 } };
+
+            // --- MODIFIED: Asteroid Fragmentation Rates ---
+            const ASTEROID_SIZES = {
+                large: { baseRadius: 35, points: 20, health: 3, fragments: 2, fragmentSizeKey: 'medium', color: 0xAAAAAA }, // Breaks into 2 medium
+                medium: { baseRadius: 22, points: 50, health: 2, fragments: 1, fragmentSizeKey: 'small', color: 0x999999 }, // Breaks into 1 small consistently (simpler)
+                // Alternatively, for random 1 or 2 small fragments:
+                // medium: { baseRadius: 22, points: 50, health: 2, fragments: () => Math.random() < 0.5 ? 1 : 2, fragmentSizeKey: 'small', color: 0x999999 },
+                small: { baseRadius: 12, points: 100, health: 1, fragments: 0, fragmentSizeKey: null, color: 0x888888 } // No fragments
+            };
+            // --- End Modification ---
+
 
             // --- PixiJS Setup (unchanged) ---
             let app; let backgroundContainer; let mainContainer; let uiContainerPixi; try { app = new PIXI.Application({ width: GAME_WIDTH, height: GAME_HEIGHT, backgroundColor: 0x000000, antialias: true, resolution: window.devicePixelRatio || 1, autoDensity: true }); document.body.appendChild(app.view); app.view.style.position = 'absolute'; app.view.style.left = '0px'; app.view.style.top = '0px'; app.view.style.width = '100%'; app.view.style.height = '100%'; app.view.style.zIndex = '1'; backgroundContainer = new PIXI.Container(); mainContainer = new PIXI.Container(); uiContainerPixi = new PIXI.Container(); uiContainerPixi.zIndex = 20; app.stage.addChild(backgroundContainer); app.stage.addChild(mainContainer); app.stage.addChild(uiContainerPixi); console.log("PixiJS App OK & Containers created."); } catch (error) { console.error("PixiJS App FAIL:", error); alert("Pixi Init Failed!"); return; }
 
-            // --- UI Element References ---
+            // --- UI Element References (Speed buttons removed) ---
             const scoreDisplay = document.getElementById('scoreDisplay'); const livesDisplay = document.getElementById('livesDisplay');
             const movementSlider = document.getElementById('movementSlider');
 
-            // --- Game State ---
+            // --- Game State (unchanged) ---
             let player; let asteroids = []; let lasers = []; let stars = []; let healingOrbs = []; let enemyOrbs = []; let enemyLasers = [];
             let score = 0; let lives = 3; let gameOver = false; let paused = false;
             let lastLaserTime = 0; let loopCounter = 0;
             let sliderMovementFactor = 0.0; let firePressed = false;
             let pauseOverlay = null; let gameOverOverlay = null;
-            // --- NEW: Reference to game over score text ---
             let gameOverScoreText = null;
 
             // --- Utility (unchanged) ---
             function random(min, max) { return Math.random() * (max - min) + min; }
 
-            // --- Game Objects (unchanged classes) ---
+            // --- Game Objects ---
             class Player extends PIXI.Graphics { /* ... */ constructor() { super(); this.shipWidth = 32; this.shipHeight = 32; this.x = GAME_WIDTH / 2; this.y = GAME_HEIGHT - PLAYER_BOTTOM_MARGIN - (this.shipHeight / 2); this.pivot.set(0, 0); this.drawShip(); mainContainer.addChild(this); } drawShip() { this.clear(); this.beginFill(0x44dd99); this.moveTo(0, -this.shipHeight / 2); this.lineTo(-this.shipWidth / 2, this.shipHeight / 2); this.lineTo(this.shipWidth / 2, this.shipHeight / 2); this.closePath(); this.endFill(); } move(directionFactor, delta) { const currentSpeed = PLAYER_BASE_SPEED * shipSpeedMultiplier; const moveAmount = directionFactor * currentSpeed * delta * 6; this.x += moveAmount; const halfWidth = this.shipWidth / 2; this.x = Math.max(halfWidth, Math.min(GAME_WIDTH - halfWidth, this.x)); } }
-            class Asteroid extends PIXI.Graphics { /* ... */ constructor(x, y, sizeKey, initialVelocity = null) { super(); this.sizeKey = sizeKey; const sizeData = ASTEROID_SIZES[this.sizeKey]; if (!sizeData) { return; } this.baseRadius = sizeData.baseRadius; this.pointsValue = sizeData.points; this.fragmentCount = sizeData.fragments; this.fragmentSizeKey = sizeData.fragmentSizeKey; this.tint = sizeData.color; this.x = x !== null ? x : random(0, GAME_WIDTH); this.y = y !== null ? y : -this.baseRadius; if (initialVelocity) { this.baseSpeedX = initialVelocity.x; this.baseSpeedY = initialVelocity.y; } else { this.baseSpeedY = ASTEROID_SPEED_BASE * (1 + (ASTEROID_SIZES.large.baseRadius - this.baseRadius) / 25) * random(0.8, 1.2); this.baseSpeedX = (Math.random() - 0.5) * ASTEROID_SPEED_BASE * 0.7; } this.updateSpeed(); this.rotationSpeed = random(-0.05, 0.05); this.shapePoints = this._generateShapePoints(); this.pivot.set(0, 0); this.drawAsteroid(); mainContainer.addChild(this); } _generateShapePoints() { const points = []; const numVertices = Math.floor(random(8, 13)); for (let i = 0; i < numVertices; i++) { const angle = (i / numVertices) * Math.PI * 2; const radiusVariance = this.baseRadius * random(0.75, 1.05); points.push({ x: Math.cos(angle) * radiusVariance, y: Math.sin(angle) * radiusVariance }); } return points; } drawAsteroid() { this.clear(); this.beginFill(this.tint); if (this.shapePoints && this.shapePoints.length > 1) { this.moveTo(this.shapePoints[0].x, this.shapePoints[0].y); for (let i = 1; i < this.shapePoints.length; i++) { this.lineTo(this.shapePoints[i].x, this.shapePoints[i].y); } this.closePath(); } else { this.drawCircle(0, 0, this.baseRadius); } this.endFill(); } updateSpeed() { this.speedY = this.baseSpeedY * asteroidSpeedMultiplier; this.speedX = this.baseSpeedX * asteroidSpeedMultiplier; } update(delta) { this.updateSpeed(); const moveAmountY = this.speedY * delta * 10; const moveAmountX = this.speedX * delta * 10; this.y += moveAmountY; this.x += moveAmountX; this.rotation += this.rotationSpeed * delta; if (this.x < -this.baseRadius) this.x = GAME_WIDTH + this.baseRadius; else if (this.x > GAME_WIDTH + this.baseRadius) this.x = -this.baseRadius; } breakApart() { if (this.fragmentCount <= 0 || !this.fragmentSizeKey) return; for (let i = 0; i < this.fragmentCount; i++) { const angle = random(0, Math.PI * 2); const speedBoost = FRAGMENT_SPEED_BOOST * (1 + Math.random() * 0.5); const fragmentVelocity = { x: this.baseSpeedX * 0.5 + Math.cos(angle) * speedBoost, y: this.baseSpeedY * 0.5 + Math.sin(angle) * speedBoost * 0.8 }; const fragment = new Asteroid(this.x, this.y, this.fragmentSizeKey, fragmentVelocity); asteroids.push(fragment); } } }
+            class Asteroid extends PIXI.Graphics {
+                 constructor(x, y, sizeKey, initialVelocity = null) {
+                     super();
+                     this.sizeKey = sizeKey;
+                     const sizeData = ASTEROID_SIZES[this.sizeKey];
+                     if (!sizeData) { console.error("Invalid sizeKey in Asteroid constructor:", sizeKey); return; }
+                     this.baseRadius = sizeData.baseRadius;
+                     this.pointsValue = sizeData.points;
+                     // --- MODIFIED: Handle fragments potentially being a function ---
+                     this.fragmentCount = (typeof sizeData.fragments === 'function') ? sizeData.fragments() : sizeData.fragments;
+                     // --- End Modification ---
+                     this.fragmentSizeKey = sizeData.fragmentSizeKey;
+                     this.tint = sizeData.color;
+                     this.x = x !== null ? x : random(0, GAME_WIDTH);
+                     this.y = y !== null ? y : -this.baseRadius;
+                     if (initialVelocity) { this.baseSpeedX = initialVelocity.x; this.baseSpeedY = initialVelocity.y; } else { this.baseSpeedY = ASTEROID_SPEED_BASE * (1 + (ASTEROID_SIZES.large.baseRadius - this.baseRadius) / 25) * random(0.8, 1.2); this.baseSpeedX = (Math.random() - 0.5) * ASTEROID_SPEED_BASE * 0.7; }
+                     this.updateSpeed();
+                     this.rotationSpeed = random(-0.05, 0.05);
+                     this.shapePoints = this._generateShapePoints();
+                     this.pivot.set(0, 0);
+                     this.drawAsteroid();
+                     mainContainer.addChild(this);
+                 }
+                 _generateShapePoints() { /* ... unchanged ... */ const points = []; const numVertices = Math.floor(random(8, 13)); for (let i = 0; i < numVertices; i++) { const angle = (i / numVertices) * Math.PI * 2; const radiusVariance = this.baseRadius * random(0.75, 1.05); points.push({ x: Math.cos(angle) * radiusVariance, y: Math.sin(angle) * radiusVariance }); } return points; }
+                 drawAsteroid() { /* ... unchanged ... */ this.clear(); this.beginFill(this.tint); if (this.shapePoints && this.shapePoints.length > 1) { this.moveTo(this.shapePoints[0].x, this.shapePoints[0].y); for (let i = 1; i < this.shapePoints.length; i++) { this.lineTo(this.shapePoints[i].x, this.shapePoints[i].y); } this.closePath(); } else { this.drawCircle(0, 0, this.baseRadius); } this.endFill(); }
+                 updateSpeed() { this.speedY = this.baseSpeedY * asteroidSpeedMultiplier; this.speedX = this.baseSpeedX * asteroidSpeedMultiplier; }
+                 update(delta) { this.updateSpeed(); const moveAmountY = this.speedY * delta * 10; const moveAmountX = this.speedX * delta * 10; this.y += moveAmountY; this.x += moveAmountX; this.rotation += this.rotationSpeed * delta; if (this.x < -this.baseRadius) this.x = GAME_WIDTH + this.baseRadius; else if (this.x > GAME_WIDTH + this.baseRadius) this.x = -this.baseRadius; }
+                 breakApart() {
+                    // Note: fragmentCount is now resolved in the constructor
+                    if (this.fragmentCount <= 0 || !this.fragmentSizeKey) return;
+                    console.log(`Breaking ${this.sizeKey} into ${this.fragmentCount} ${this.fragmentSizeKey} fragments.`); // Log actual count
+                    for (let i = 0; i < this.fragmentCount; i++) {
+                        const angle = random(0, Math.PI * 2);
+                        const speedBoost = FRAGMENT_SPEED_BOOST * (1 + Math.random() * 0.5);
+                        const fragmentVelocity = { x: this.baseSpeedX * 0.5 + Math.cos(angle) * speedBoost, y: this.baseSpeedY * 0.5 + Math.sin(angle) * speedBoost * 0.8 };
+                        const fragment = new Asteroid(this.x, this.y, this.fragmentSizeKey, fragmentVelocity);
+                        if (fragment) { // Ensure fragment was created correctly
+                             asteroids.push(fragment);
+                        }
+                    }
+                 }
+            }
             class Laser extends PIXI.Graphics { /* ... */ constructor(x, y) { super(); this.laserWidth = 4; this.laserHeight = 20; this.speed = LASER_SPEED; this.tint = 0xff00ff; this.x = x; this.y = y; this.drawLaser(); mainContainer.addChild(this); } drawLaser() { this.clear(); this.beginFill(this.tint); this.drawRect(-this.laserWidth / 2, -this.laserHeight / 2, this.laserWidth, this.laserHeight); this.endFill(); } update(delta) { this.y -= this.speed * delta * 10; } getBoundsRect() { return { x: this.x - this.laserWidth / 2, y: this.y - this.laserHeight / 2, width: this.laserWidth, height: this.laserHeight }; } }
-            class Star extends PIXI.Graphics { /* ... */ constructor() { super(); this.x = random(0, GAME_WIDTH); this.y = random(0, GAME_HEIGHT); this.z = random(0.3, 1.0); this.radius = this.z * 1.5; this.baseSpeed = STAR_BASE_SPEED * this.z * this.z; this.speed = this.baseSpeed * asteroidSpeedMultiplier; this.alpha = 0.5 + this.z * 0.5; this.beginFill(0xFFFFFF, this.alpha); this.drawCircle(0, 0, this.radius); this.endFill(); backgroundContainer.addChild(this); } update(delta) { this.speed = this.baseSpeed * asteroidSpeedMultiplier; this.y += this.speed * delta * 10; if (this.y > GAME_HEIGHT + this.radius) { this.y = -this.radius; this.x = random(0, GAME_WIDTH); } } }
-            class HealingOrb extends PIXI.Graphics { /* ... */ constructor() { super(); this.radius = HEALING_ORB_RADIUS; this.glowRadius = this.radius * 2.5; this.x = random(this.glowRadius, GAME_WIDTH - this.glowRadius); this.y = -this.glowRadius; this.speedY = HEALING_ORB_SPEED; this.coreColor = 0x00FF00; this.glowColor = 0x33FF33; this.pulseSpeed = 0.05; this.glowAlpha = 0.3; this.pivot.set(0, 0); this.drawOrb(); mainContainer.addChild(this); } drawOrb() { this.clear(); this.beginFill(this.glowColor, this.glowAlpha); this.drawCircle(0, 0, this.glowRadius); this.endFill(); this.beginFill(this.coreColor, 0.9); this.drawCircle(0, 0, this.radius); this.endFill(); } update(delta) { this.y += this.speedY * delta * 10; this.glowAlpha = 0.2 + (Math.sin(performance.now() * this.pulseSpeed * 0.1) + 1) * 0.15; this.drawOrb(); } }
-            class EnemyOrb extends PIXI.Graphics { /* ... */ constructor() { super(); this.radius = ENEMY_ORB_RADIUS; this.glowRadius = this.radius * 2.0; this.x = random(this.glowRadius, GAME_WIDTH - this.glowRadius); this.y = -this.glowRadius; this.speedY = ENEMY_ORB_SPEED_Y; this.speedX = (Math.random() < 0.5 ? 1 : -1) * ENEMY_ORB_SPEED_X; this.coreColor = 0xFF0000; this.glowColor = 0xFF3333; this.health = ENEMY_ORB_HEALTH; this.pointsValue = ENEMY_ORB_POINTS; this.pulseSpeed = 0.06; this.glowAlpha = 0.3; this.lastShotTime = performance.now() + random(0, ENEMY_ORB_SHOOT_COOLDOWN); this.pivot.set(0, 0); this.drawOrb(); mainContainer.addChild(this); } drawOrb() { this.clear(); this.beginFill(this.glowColor, this.glowAlpha); this.drawCircle(0, 0, this.glowRadius); this.endFill(); this.beginFill(this.coreColor, 0.9); this.drawCircle(0, 0, this.radius); this.endFill(); } shoot() { const now = performance.now(); if (!paused && !gameOver && now - this.lastShotTime > ENEMY_ORB_SHOOT_COOLDOWN) { enemyLasers.push(new EnemyLaser(this.x, this.y + this.radius)); this.lastShotTime = now; } } hit(damage = 1) { this.health -= damage; this.alpha = 0.6; setTimeout(() => { this.alpha = 1.0; }, 80); return this.health <= 0; } update(delta) { this.y += this.speedY * delta * 10; this.x += this.speedX * delta * 10; if (this.x < this.radius || this.x > GAME_WIDTH - this.radius) { this.speedX *= -1; this.x = Math.max(this.radius, Math.min(GAME_WIDTH - this.radius, this.x)); } this.glowAlpha = 0.2 + (Math.sin(performance.now() * this.pulseSpeed * 0.1) + 1) * 0.15; this.drawOrb(); this.shoot(); } }
+            class Star extends PIXI.Graphics { /* ... Star uses fixed asteroidSpeedMultiplier ... */ constructor() { super(); this.x = random(0, GAME_WIDTH); this.y = random(0, GAME_HEIGHT); this.z = random(0.3, 1.0); this.radius = this.z * 1.5; this.baseSpeed = STAR_BASE_SPEED * this.z * this.z; this.speed = this.baseSpeed * asteroidSpeedMultiplier; this.alpha = 0.5 + this.z * 0.5; this.beginFill(0xFFFFFF, this.alpha); this.drawCircle(0, 0, this.radius); this.endFill(); backgroundContainer.addChild(this); } update(delta) { this.speed = this.baseSpeed * asteroidSpeedMultiplier; this.y += this.speed * delta * 10; if (this.y > GAME_HEIGHT + this.radius) { this.y = -this.radius; this.x = random(0, GAME_WIDTH); } } }
+            class HealingOrb extends PIXI.Graphics { /* ... Uses HEALING_ORB_SPEED directly ... */ constructor() { super(); this.radius = HEALING_ORB_RADIUS; this.glowRadius = this.radius * 2.5; this.x = random(this.glowRadius, GAME_WIDTH - this.glowRadius); this.y = -this.glowRadius; this.speedY = HEALING_ORB_SPEED; this.coreColor = 0x00FF00; this.glowColor = 0x33FF33; this.pulseSpeed = 0.05; this.glowAlpha = 0.3; this.pivot.set(0, 0); this.drawOrb(); mainContainer.addChild(this); } drawOrb() { this.clear(); this.beginFill(this.glowColor, this.glowAlpha); this.drawCircle(0, 0, this.glowRadius); this.endFill(); this.beginFill(this.coreColor, 0.9); this.drawCircle(0, 0, this.radius); this.endFill(); } update(delta) { this.y += this.speedY * delta * 10; this.glowAlpha = 0.2 + (Math.sin(performance.now() * this.pulseSpeed * 0.1) + 1) * 0.15; this.drawOrb(); } }
+            class EnemyOrb extends PIXI.Graphics { /* ... Uses ENEMY_ORB speeds directly ... */ constructor() { super(); this.radius = ENEMY_ORB_RADIUS; this.glowRadius = this.radius * 2.0; this.x = random(this.glowRadius, GAME_WIDTH - this.glowRadius); this.y = -this.glowRadius; this.speedY = ENEMY_ORB_SPEED_Y; this.speedX = (Math.random() < 0.5 ? 1 : -1) * ENEMY_ORB_SPEED_X; this.coreColor = 0xFF0000; this.glowColor = 0xFF3333; this.health = ENEMY_ORB_HEALTH; this.pointsValue = ENEMY_ORB_POINTS; this.pulseSpeed = 0.06; this.glowAlpha = 0.3; this.lastShotTime = performance.now() + random(0, ENEMY_ORB_SHOOT_COOLDOWN); this.pivot.set(0, 0); this.drawOrb(); mainContainer.addChild(this); } drawOrb() { this.clear(); this.beginFill(this.glowColor, this.glowAlpha); this.drawCircle(0, 0, this.glowRadius); this.endFill(); this.beginFill(this.coreColor, 0.9); this.drawCircle(0, 0, this.radius); this.endFill(); } shoot() { const now = performance.now(); if (!paused && !gameOver && now - this.lastShotTime > ENEMY_ORB_SHOOT_COOLDOWN) { enemyLasers.push(new EnemyLaser(this.x, this.y + this.radius)); this.lastShotTime = now; } } hit(damage = 1) { this.health -= damage; this.alpha = 0.6; setTimeout(() => { this.alpha = 1.0; }, 80); return this.health <= 0; } update(delta) { this.y += this.speedY * delta * 10; this.x += this.speedX * delta * 10; if (this.x < this.radius || this.x > GAME_WIDTH - this.radius) { this.speedX *= -1; this.x = Math.max(this.radius, Math.min(GAME_WIDTH - this.radius, this.x)); } this.glowAlpha = 0.2 + (Math.sin(performance.now() * this.pulseSpeed * 0.1) + 1) * 0.15; this.drawOrb(); this.shoot(); } }
             class EnemyLaser extends PIXI.Graphics { /* ... */ constructor(x, y) { super(); this.laserWidth = 5; this.laserHeight = 15; this.speed = ENEMY_LASER_SPEED; this.tint = 0xFF8C00; this.x = x; this.y = y; this.drawLaser(); mainContainer.addChild(this); } drawLaser() { this.clear(); this.beginFill(this.tint); this.drawRect(-this.laserWidth / 2, -this.laserHeight / 2, this.laserWidth, this.laserHeight); this.endFill(); } update(delta) { this.y += this.speed * delta * 10; } getBoundsRect() { return { x: this.x - this.laserWidth / 2, y: this.y - this.laserHeight / 2, width: this.laserWidth, height: this.laserHeight }; } }
 
-            // --- UI Update Functions ---
-            function updateScoreUI() {
-                if(scoreDisplay) scoreDisplay.textContent = `Score: ${score}`;
-                // --- NEW: Update game over score text if visible ---
-                if (gameOverOverlay && gameOverScoreText) {
-                    gameOverScoreText.text = `Final Score: ${score}\n(Click to Play Again)`;
-                }
-                // --- End Modification ---
-            }
-            function updateLivesUI() { if(livesDisplay){ const heart = '❤️'; const lostHeart = '🖤'; livesDisplay.textContent = `Lives: ${heart.repeat(lives)}${lostHeart.repeat(Math.max(0, 3 - lives))}`; }}
+            // --- UI Update Functions (Removed Speed update) ---
+            function updateScoreUI() { /* ... */ if(scoreDisplay) scoreDisplay.textContent = `Score: ${score}`; if (gameOverOverlay && gameOverScoreText) { gameOverScoreText.text = `Final Score: ${score}\n(Click to Play Again)`; } }
+            function updateLivesUI() { /* ... */ if(livesDisplay){ const heart = '❤️'; const lostHeart = '🖤'; livesDisplay.textContent = `Lives: ${heart.repeat(lives)}${lostHeart.repeat(Math.max(0, 3 - lives))}`; }}
             // Removed updateSpeedBtnUI
 
-            // --- Pause/Resume/Overlay (Score Text separated) ---
+            // --- Pause/Resume/Overlay (unchanged) ---
             function togglePause() { /* ... */ if (gameOver) return; paused = !paused; console.log("Paused:", paused); if (paused) { app.ticker.stop(); if (!pauseOverlay) { pauseOverlay = createOverlay("PAUSED", "(Press 'P' to Resume)"); uiContainerPixi.addChild(pauseOverlay); } pauseOverlay.visible = true; } else { if (pauseOverlay) { pauseOverlay.visible = false; } app.ticker.start(); } }
-            // --- MODIFIED: createOverlay separates title and score text ---
-            function createOverlay(title, scoreTextContent = null) { // Takes optional score text
-                const overlay = new PIXI.Container();
-                overlay.x = 0; overlay.y = 0;
-                overlay.width = GAME_WIDTH; overlay.height = GAME_HEIGHT;
-                overlay.interactive = true;
-
-                const background = new PIXI.Graphics();
-                background.beginFill(0x000000, 0.7);
-                background.drawRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-                background.endFill();
-                overlay.addChild(background);
-
-                // Title Text
-                const titleStyle = new PIXI.TextStyle({ fill: '#ffffff', fontSize: 48, align: 'center', dropShadow: true, dropShadowColor: '#000000', dropShadowBlur: 4, dropShadowDistance: 4 });
-                const titleText = new PIXI.Text(title, titleStyle);
-                titleText.anchor.set(0.5);
-                titleText.x = GAME_WIDTH / 2;
-                titleText.y = GAME_HEIGHT / 2 - (scoreTextContent ? 50 : 0); // Adjust Y if score is present
-                overlay.addChild(titleText);
-
-                // Score/Subtitle Text (if provided)
-                if (scoreTextContent) {
-                    const subtitleStyle = new PIXI.TextStyle({ fill: '#cccccc', fontSize: 24, align: 'center', lineHeight: 30 }); // Added line height
-                    const subtitleText = new PIXI.Text(scoreTextContent, subtitleStyle);
-                    subtitleText.anchor.set(0.5);
-                    subtitleText.x = GAME_WIDTH / 2;
-                    subtitleText.y = GAME_HEIGHT / 2 + 30;
-                    overlay.addChild(subtitleText);
-                    // --- NEW: Store reference if it's the game over score ---
-                    if (title === "GAME OVER") {
-                        gameOverScoreText = subtitleText; // Store reference
-                    }
-                    // --- End Modification ---
-                }
-                return overlay;
-            }
-            // --- End Modification ---
+            function createOverlay(title, scoreTextContent = null) { /* ... */ const overlay = new PIXI.Container(); overlay.x = 0; overlay.y = 0; overlay.width = GAME_WIDTH; overlay.height = GAME_HEIGHT; overlay.interactive = true; const background = new PIXI.Graphics(); background.beginFill(0x000000, 0.7); background.drawRect(0, 0, GAME_WIDTH, GAME_HEIGHT); background.endFill(); overlay.addChild(background); const titleStyle = new PIXI.TextStyle({ fill: '#ffffff', fontSize: 48, align: 'center', dropShadow: true, dropShadowColor: '#000000', dropShadowBlur: 4, dropShadowDistance: 4 }); const titleText = new PIXI.Text(title, titleStyle); titleText.anchor.set(0.5); titleText.x = GAME_WIDTH / 2; titleText.y = GAME_HEIGHT / 2 - (scoreTextContent ? 50 : 0); overlay.addChild(titleText); if (scoreTextContent) { const subtitleStyle = new PIXI.TextStyle({ fill: '#cccccc', fontSize: 24, align: 'center', lineHeight: 30 }); const subtitleText = new PIXI.Text(scoreTextContent, subtitleStyle); subtitleText.anchor.set(0.5); subtitleText.x = GAME_WIDTH / 2; subtitleText.y = GAME_HEIGHT / 2 + 30; overlay.addChild(subtitleText); if (title === "GAME OVER") { gameOverScoreText = subtitleText; } } return overlay; }
 
             // --- Game Functions (unchanged) ---
             function spawnAsteroid() { /* ... */ if (!paused && !gameOver && asteroids.length < MAX_ASTEROIDS && Math.random() < ASTEROID_SPAWN_RATE) { const sizeKey = Math.random() < 0.6 ? 'large' : 'medium'; asteroids.push(new Asteroid(null, null, sizeKey)); return true; } return false; }
@@ -1282,44 +1292,34 @@ void main(void)\r
             function playerHit() { /* ... */ if (gameOver || paused) return; lives--; updateLivesUI(); if (player) { player.alpha = 0.5; setTimeout(() => { if(player) player.alpha = 1.0; }, 150); } if (lives <= 0) { endGame(); } }
             function asteroidDestroyed(asteroid) { /* ... */ if (!asteroid) return; score += asteroid.pointsValue; updateScoreUI(); asteroid.breakApart(); mainContainer.removeChild(asteroid); asteroid.destroy(); }
             function enemyOrbDestroyed(enemyOrb) { /* ... */ if (!enemyOrb) return; score += enemyOrb.pointsValue; updateScoreUI(); mainContainer.removeChild(enemyOrb); enemyOrb.destroy(); }
-            // Modified endGame for Replay
-            function endGame() {
-                if (gameOver) return;
-                gameOver = true; paused = false;
-                // --- MODIFIED: Update final score display immediately ---
-                console.log(`Game Over! Final Score: ${score}`);
-                // Ensure the main UI score is up-to-date BEFORE creating the overlay
-                updateScoreUI();
-                // --- End Modification ---
-                app.ticker.stop();
-                if (pauseOverlay) pauseOverlay.visible = false;
+            function endGame() { /* ... */ if (gameOver) return; gameOver = true; paused = false; console.log(`Game Over! Final Score: ${score}`); updateScoreUI(); app.ticker.stop(); if (pauseOverlay) pauseOverlay.visible = false; const finalScoreText = `Final Score: ${score}\n(Click to Play Again)`; if (!gameOverOverlay) { gameOverOverlay = createOverlay(`GAME OVER`, finalScoreText); gameOverOverlay.buttonMode = true; gameOverOverlay.on('pointerdown', () => { console.log("Replay clicked!"); uiContainerPixi.removeChild(gameOverOverlay); gameOverOverlay.destroy({ children: true }); gameOverOverlay = null; gameOverScoreText = null; init(); }); uiContainerPixi.addChild(gameOverOverlay); } else { if (gameOverScoreText) gameOverScoreText.text = finalScoreText; } gameOverOverlay.visible = true; }
 
-                // --- MODIFIED: Use current score when creating overlay text ---
-                const finalScoreText = `Final Score: ${score}\n(Click to Play Again)`;
-                // --- End Modification ---
-
-                if (!gameOverOverlay) {
-                    gameOverOverlay = createOverlay(`GAME OVER`, finalScoreText); // Pass formatted score text
-                    gameOverOverlay.buttonMode = true;
-                    gameOverOverlay.on('pointerdown', () => {
-                        console.log("Replay clicked!");
-                        uiContainerPixi.removeChild(gameOverOverlay);
-                        gameOverOverlay.destroy({ children: true });
-                        gameOverOverlay = null;
-                        gameOverScoreText = null; // --- NEW: Clear reference
-                        init();
-                    });
-                    uiContainerPixi.addChild(gameOverOverlay);
-                } else {
-                     // If overlay existed, just update its score text (redundant if created fresh)
-                     if (gameOverScoreText) gameOverScoreText.text = finalScoreText;
-                }
-                gameOverOverlay.visible = true;
-            }
-
-
-            // --- Input Handling (unchanged) ---
-            function setupInputListeners() { /* ... setupInputListeners function unchanged ... */ console.log("Setting up input listeners..."); const shootButton = document.getElementById('shootButton'); const slider = document.getElementById('movementSlider'); if (!shootButton || !slider /* Removed speed btn checks */ ) { console.error("UI element(s) not found!"); return; } function handleSliderInput() { if (!gameOver && !paused) { sliderMovementFactor = ((slider.value / 100) * 2) - 1; } } function resetSlider() { slider.value = 50; sliderMovementFactor = 0; } slider.addEventListener('input', handleSliderInput); slider.addEventListener('touchend', resetSlider, { passive: false }); slider.addEventListener('mouseup', resetSlider); slider.addEventListener('mouseout', resetSlider); shootButton.addEventListener('touchstart', (e) => { if (!gameOver && !paused) firePressed = true; e.preventDefault(); }, { passive: false }); shootButton.addEventListener('touchend', (e) => { firePressed = false; e.preventDefault(); }, { passive: false }); shootButton.addEventListener('mousedown', () => { if (!gameOver && !paused) firePressed = true; }); shootButton.addEventListener('mouseup', () => { firePressed = false; }); shootButton.addEventListener('mouseout', () => { if(firePressed) firePressed = false; }); window.addEventListener('keydown', (e) => { if (e.key === 'p' || e.key === 'P') { togglePause(); return; } if (gameOver || paused || e.repeat) return; if (e.key === ' ' || e.key === 'ArrowUp') { firePressed = true; e.preventDefault(); } }); window.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'ArrowUp') { firePressed = false; } }); /* Removed speed btn listeners */ console.log("Input listeners attached."); }
+            // --- Input Handling (Speed listeners removed) ---
+            function setupInputListeners() {
+                 console.log("Setting up input listeners...");
+                 const shootButton = document.getElementById('shootButton');
+                 const slider = document.getElementById('movementSlider');
+                 // Remove speed button references from check
+                 if (!shootButton || !slider ) {
+                     console.error("UI element(s) not found!");
+                     return;
+                 }
+                 function handleSliderInput() { if (!gameOver && !paused) { sliderMovementFactor = ((slider.value / 100) * 2) - 1; } }
+                 function resetSlider() { slider.value = 50; sliderMovementFactor = 0; }
+                 slider.addEventListener('input', handleSliderInput);
+                 slider.addEventListener('touchend', resetSlider, { passive: false });
+                 slider.addEventListener('mouseup', resetSlider);
+                 slider.addEventListener('mouseout', resetSlider);
+                 shootButton.addEventListener('touchstart', (e) => { if (!gameOver && !paused) firePressed = true; e.preventDefault(); }, { passive: false });
+                 shootButton.addEventListener('touchend', (e) => { firePressed = false; e.preventDefault(); }, { passive: false });
+                 shootButton.addEventListener('mousedown', () => { if (!gameOver && !paused) firePressed = true; });
+                 shootButton.addEventListener('mouseup', () => { firePressed = false; });
+                 shootButton.addEventListener('mouseout', () => { if(firePressed) firePressed = false; });
+                 window.addEventListener('keydown', (e) => { if (e.key === 'p' || e.key === 'P') { togglePause(); return; } if (gameOver || paused || e.repeat) return; if (e.key === ' ' || e.key === 'ArrowUp') { firePressed = true; e.preventDefault(); } });
+                 window.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'ArrowUp') { firePressed = false; } });
+                 // Removed speed button listeners
+                 console.log("Input listeners attached.");
+             }
 
             // --- Game Loop (unchanged) ---
             function gameLoop(delta) {
@@ -1341,23 +1341,20 @@ void main(void)\r
                 } catch (error) { console.error("ERROR IN GAME LOOP:", error); }
             } // End of gameLoop
 
-            // --- Initialization ---
+            // --- Initialization (Set fixed speeds) ---
             function init() {
                  console.log("INIT START");
                  // Reset state
                  gameOver = false; paused = false; firePressed = false;
                  lastLaserTime = 0; loopCounter = 0; score = 0; lives = 3;
-                 // Fixed speeds
-                 // shipSpeedMultiplier = 1.0; // Already constants
-                 // asteroidSpeedMultiplier = 1.0;
+                 // Removed speed index resets
                  asteroids = []; lasers = []; stars = []; healingOrbs = []; enemyOrbs = []; enemyLasers = [];
                  sliderMovementFactor = 0.0;
                  if (movementSlider) movementSlider.value = 50;
 
                  // Clear containers
                  mainContainer.removeChildren(); backgroundContainer.removeChildren(); uiContainerPixi.removeChildren();
-                 pauseOverlay = null; gameOverOverlay = null;
-                 gameOverScoreText = null; // --- NEW: Reset score text reference ---
+                 pauseOverlay = null; gameOverOverlay = null; gameOverScoreText = null;
 
                  // Update UI
                  updateScoreUI(); updateLivesUI();
