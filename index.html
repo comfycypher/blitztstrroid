@@ -3,21 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Asteroid AAA Assault - Laser Hit Fix</title>
+    <title>Asteroid AAA Assault - Final Code</title>
     <style>
-        /* CSS Styles unchanged */
+        /* Basic page and canvas styling */
         body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; color: white; }
         canvas { display: block; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        /* UI container at the top */
         #uiContainer { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; z-index: 10; pointer-events: none; font-size: 1.1em; text-shadow: 1px 1px 2px black; }
+        /* Individual UI elements */
         #scoreDisplay, #livesDisplay { background-color: rgba(0, 0, 0, 0.5); padding: 8px 12px; border-radius: 5px; pointer-events: auto; margin-bottom: 5px; }
-        #livesDisplay { letter-spacing: 2px; }
+        #livesDisplay { letter-spacing: 2px; } /* Spacing for hearts */
+        /* Right Fire Button Container */
         #fireControlContainer { position: absolute; bottom: 20px; right: 20px; z-index: 10; }
+        /* Left Slider Container */
         #sliderContainer { position: absolute; bottom: 25px; left: 20px; width: 40%; max-width: 200px; z-index: 10; display: flex; justify-content: center; }
+        /* Slider track style */
         #movementSlider { width: 100%; height: 15px; cursor: pointer; appearance: none; background: rgba(255, 255, 255, 0.2); outline: none; border-radius: 10px; }
+        /* Slider thumb style (Chrome/Safari) */
         #movementSlider::-webkit-slider-thumb { appearance: none; width: 45px; height: 45px; background: rgba(255, 255, 255, 0.5); border-radius: 50%; cursor: grab; }
         #movementSlider:active::-webkit-slider-thumb { background: rgba(255, 255, 255, 0.7); cursor: grabbing; }
+        /* Slider thumb style (Firefox) */
         #movementSlider::-moz-range-thumb { width: 45px; height: 45px; background: rgba(255, 255, 255, 0.5); border-radius: 50%; cursor: grab; border: none; }
         #movementSlider:active::-moz-range-thumb { background: rgba(255, 255, 255, 0.7); cursor: grabbing; }
+        /* Fire button style */
         .controlButton { width: 60px; height: 60px; border-radius: 50%; background-color: rgba(255, 255, 255, 0.2); color: white; display: flex; justify-content: center; align-items: center; font-size: 20px; user-select: none; cursor: pointer; }
         .controlButton:active { background-color: rgba(255, 255, 255, 0.4); }
     </style>
@@ -1144,162 +1152,547 @@ void main(void)\r
 
 </head>
 <body>
-    <!-- UI -->
-    <div id="uiContainer"> <div id="scoreDisplay">Score: 0</div> <div id="livesDisplay">Lives: ❤️❤️❤️❤️❤️</div> </div>
+    <!-- HTML Elements for UI -->
+    <div id="uiContainer">
+        <div id="scoreDisplay">Score: 0</div>
+        <div id="livesDisplay">Lives: ❤️❤️❤️</div> <!-- Default to 3 hearts visually -->
+    </div>
     <!-- Slider Control (Left) -->
-    <div id="sliderContainer"> <input type="range" id="movementSlider" min="0" max="100" value="50" step="any"> </div>
+    <div id="sliderContainer">
+        <input type="range" id="movementSlider" min="0" max="100" value="50" step="any">
+    </div>
     <!-- Right Fire Control -->
     <div id="fireControlContainer"> <div id="shootButton" class="controlButton">Fire</div> </div>
 
     <!-- Main Game Script -->
     <script>
+        // Global flag to prevent multiple game initializations
         let gameInitialized = false;
 
+        // Main function to set up and run the game
         function runGame() {
-            if (gameInitialized) return; gameInitialized = true;
+            // Prevent re-initialization if already run
+            if (gameInitialized) return;
+            gameInitialized = true;
             console.log("RUN GAME START");
-            if (typeof PIXI === 'undefined') { console.error("PIXI Missing!"); alert("PIXI Missing!"); return; }
+
+            // Check if PixiJS library was loaded/pasted correctly
+            if (typeof PIXI === 'undefined') {
+                console.error("PIXI Missing! Ensure the PixiJS library code is embedded correctly in the HTML.");
+                alert("PIXI Missing! Game cannot start.");
+                return;
+            }
             console.log("PIXI OK Version:", PIXI.VERSION);
 
-            // --- Config ---
-            const GAME_WIDTH = window.innerWidth; const GAME_HEIGHT = window.innerHeight;
-            const PLAYER_BASE_SPEED = 2.5; const ASTEROID_SPEED_BASE = 0.8; const LASER_SPEED = 9;
-            const MAX_ASTEROIDS = 20; const ASTEROID_SPAWN_RATE = 0.02;
-            const LASER_COOLDOWN = 120; const FRAGMENT_SPEED_BOOST = 0.3;
-            const STAR_COUNT = 200; const STAR_BASE_SPEED = 0.5;
-            const HEALING_ORB_SPEED = 0.5; const HEALING_ORB_RADIUS = 12; const MAX_HEALING_ORBS = 1; const HEALING_ORB_SPAWN_CHANCE = 0.0015; const HEALING_ORB_POINTS = 50;
-            const ENEMY_ORB_SPEED_Y = 0.5; const ENEMY_ORB_SPEED_X = 0.3; const ENEMY_ORB_RADIUS = 15; const ENEMY_ORB_POINTS = 150; const ENEMY_ORB_HEALTH = 3; const MAX_ENEMY_ORBS = 2; const ENEMY_ORB_SPAWN_CHANCE = 0.002; const ENEMY_ORB_SHOOT_COOLDOWN = 1500; const ENEMY_LASER_SPEED = 4;
-            const PLAYER_BOTTOM_MARGIN = 100; const STARTING_LIVES = 5;
+            // --- Game Configuration Constants ---
+            const GAME_WIDTH = window.innerWidth;
+            const GAME_HEIGHT = window.innerHeight;
+            const PLAYER_BASE_SPEED = 2.5;         // Base speed units per second (adjusted by multiplier and delta)
+            const ASTEROID_SPEED_BASE = 0.8;       // Base speed for asteroids
+            const LASER_SPEED = 9;                 // Player laser speed
+            const MAX_ASTEROIDS = 20;              // Maximum number of asteroids/fragments allowed on screen
+            const ASTEROID_SPAWN_RATE = 0.02;      // Chance (0 to 1) per frame to spawn a new asteroid
+            const LASER_COOLDOWN = 120;            // Milliseconds between player laser shots
+            const FRAGMENT_SPEED_BOOST = 0.3;      // Extra speed added to fragments when an asteroid breaks
+            const STAR_COUNT = 200;                // Number of background stars
+            const STAR_BASE_SPEED = 0.5;           // Base speed for background stars
+            const HEALING_ORB_SPEED = 0.5;         // Speed of healing orbs
+            const HEALING_ORB_RADIUS = 12;         // Radius of healing orbs
+            const MAX_HEALING_ORBS = 1;            // Max healing orbs on screen
+            const HEALING_ORB_SPAWN_CHANCE = 0.0035;// Chance per frame to spawn a healing orb
+            const HEALING_ORB_POINTS = 50;         // Points for shooting a healing orb
+            const ENEMY_ORB_SPEED_Y = 0.5;         // Vertical speed of enemy orbs
+            const ENEMY_ORB_SPEED_X = 0.3;         // Base horizontal speed of enemy orbs
+            const ENEMY_ORB_RADIUS = 15;           // Radius of enemy orbs
+            const ENEMY_ORB_POINTS = 150;          // Points for destroying an enemy orb
+            const ENEMY_ORB_HEALTH = 3;            // Hits needed to destroy enemy orb
+            const MAX_ENEMY_ORBS = 2;              // Max enemy orbs on screen
+            const ENEMY_ORB_SPAWN_CHANCE = 0.002;  // Chance per frame to spawn enemy orb
+            const ENEMY_ORB_SHOOT_COOLDOWN = 1500; // Milliseconds between enemy shots
+            const ENEMY_LASER_SPEED = 4;           // Speed of enemy laser projectiles
+            const PLAYER_BOTTOM_MARGIN = 100;      // Pixels from bottom edge player cannot enter
+            const STARTING_LIVES = 3;              // Number of lives the player starts with
 
-            // --- Fixed Speed Multipliers ---
-            const shipSpeedMultiplier = 1.0; const asteroidSpeedMultiplier = 0.6;
+            // --- Fixed Speed Multipliers (Game runs at one speed now) ---
+            const shipSpeedMultiplier = 1.0;       // Multiplier for player speed (1.0 = normal)
+            const asteroidSpeedMultiplier = 0.6;   // Multiplier for asteroid/star speed (0.6 = slow)
 
-            // --- Asteroid Size Definitions ---
-            const ASTEROID_SIZES = { large: { baseRadius: 35, points: 20, health: 3, fragments: 2, fragmentSizeKey: 'medium', color: 0xAAAAAA }, medium: { baseRadius: 22, points: 50, health: 2, fragments: 1, fragmentSizeKey: 'small', color: 0x999999 }, small: { baseRadius: 12, points: 100, health: 1, fragments: 0, fragmentSizeKey: null, color: 0x888888 } };
+            // --- Data Definitions ---
+            // Defines properties for different asteroid sizes
+            const ASTEROID_SIZES = {
+                large: { baseRadius: 35, points: 20, health: 3, fragments: 2, fragmentSizeKey: 'medium', color: 0xAAAAAA },
+                medium: { baseRadius: 22, points: 50, health: 2, fragments: 1, fragmentSizeKey: 'small', color: 0x999999 },
+                small: { baseRadius: 12, points: 100, health: 1, fragments: 0, fragmentSizeKey: null, color: 0x888888 }
+            };
 
-            // --- PixiJS Setup ---
-            let app; let backgroundContainer; let mainContainer; let uiContainerPixi;
+            // --- PixiJS Application and Container Setup ---
+            let app;                    // The main Pixi Application
+            let backgroundContainer;    // Container for stars (drawn first)
+            let mainContainer;          // Container for player, asteroids, orbs, lasers (drawn middle)
+            let uiContainerPixi;        // Container for Pixi-based UI overlays (pause, game over) (drawn last)
             try {
                 app = new PIXI.Application({ width: GAME_WIDTH, height: GAME_HEIGHT, backgroundColor: 0x000000, antialias: true, resolution: window.devicePixelRatio || 1, autoDensity: true });
-                document.body.appendChild(app.view);
+                document.body.appendChild(app.view); // Add the canvas to the HTML body
+                // Style the canvas to fill the screen
                 app.view.style.position = 'absolute'; app.view.style.left = '0px'; app.view.style.top = '0px'; app.view.style.width = '100%'; app.view.style.height = '100%'; app.view.style.zIndex = '1';
-                backgroundContainer = new PIXI.Container(); mainContainer = new PIXI.Container(); uiContainerPixi = new PIXI.Container();
-                uiContainerPixi.zIndex = 20; app.stage.addChild(backgroundContainer); app.stage.addChild(mainContainer); app.stage.addChild(uiContainerPixi);
-            } catch (error) { console.error("PixiJS App FAIL:", error); alert("Pixi Init Failed!"); return; }
+                // Initialize containers
+                backgroundContainer = new PIXI.Container();
+                mainContainer = new PIXI.Container();
+                uiContainerPixi = new PIXI.Container();
+                uiContainerPixi.zIndex = 20; // Ensure overlays are on top
+                // Add containers to the main stage in rendering order (background first)
+                app.stage.addChild(backgroundContainer);
+                app.stage.addChild(mainContainer);
+                app.stage.addChild(uiContainerPixi);
+            } catch (error) {
+                console.error("PixiJS App FAIL:", error);
+                alert("Graphics Initialization Failed! Cannot start game.");
+                return;
+            }
 
-            // --- UI Element References ---
-            const scoreDisplay = document.getElementById('scoreDisplay'); const livesDisplay = document.getElementById('livesDisplay');
+            // --- HTML UI Element References ---
+            const scoreDisplay = document.getElementById('scoreDisplay');
+            const livesDisplay = document.getElementById('livesDisplay');
             const movementSlider = document.getElementById('movementSlider');
+            const shootButton = document.getElementById('shootButton'); // Needed for game over dismiss
 
-            // --- Game State ---
-            let player; let asteroids = []; let lasers = []; let stars = []; let healingOrbs = []; let enemyOrbs = []; let enemyLasers = [];
-            let newFragments = []; let score = 0; let lives = STARTING_LIVES; let gameOver = false; let paused = false;
-            let lastLaserTime = 0; let loopCounter = 0;
-            let sliderMovementFactor = 0.0; let firePressed = false; let leftPressed = false; let rightPressed = false;
-            let pauseOverlay = null; let gameOverOverlay = null; let gameOverScoreText = null;
+            // --- Game State Variables ---
+            let player;                     // Reference to the player object
+            let asteroids = [];             // Array holding all active asteroids
+            let lasers = [];                // Array holding player lasers
+            let stars = [];                 // Array holding background stars
+            let healingOrbs = [];           // Array holding healing orbs
+            let enemyOrbs = [];             // Array holding enemy orbs
+            let enemyLasers = [];           // Array holding enemy lasers
+            let newFragments = [];          // Temporary array for newly created fragments (added at end of loop)
+            let score = 0;                  // Current game score
+            let lives = STARTING_LIVES;     // Current player lives
+            let gameOver = false;           // Game over flag
+            let paused = false;             // Pause state flag
+            let lastLaserTime = 0;          // Timestamp of the last player laser shot (for cooldown)
+            let loopCounter = 0;            // Simple counter for occasional logging
+            // Input state
+            let sliderMovementFactor = 0.0; // Value from -1 to 1 representing slider position
+            let firePressed = false;        // Is the fire button/key currently held down?
+            let leftPressed = false;        // Is the left key/button pressed?
+            let rightPressed = false;       // Is the right key/button pressed?
+            // UI Overlay references
+            let pauseOverlay = null;        // Reference to the pause screen overlay
+            let gameOverOverlay = null;     // Reference to the game over screen overlay
+            let gameOverScoreText = null;   // Reference to the text object showing the score on the game over screen
 
-            // --- Utility ---
-            function random(min, max) { return Math.random() * (max - min) + min; }
-            function checkDistance(x1, y1, x2, y2) { const dx = x1 - x2; const dy = y1 - y2; return Math.sqrt(dx * dx + dy * dy); }
+            // --- Utility Functions ---
+            function random(min, max) { return Math.random() * (max - min) + min; } // Random float between min/max
+            function checkDistance(x1, y1, x2, y2) { const dx = x1 - x2; const dy = y1 - y2; return Math.sqrt(dx * dx + dy * dy); } // Calculate distance between two points
 
-            // --- Game Objects (Classes mostly unchanged) ---
-            class Player extends PIXI.Graphics { /* ... */ constructor() { super(); this.shipWidth = 32; this.shipHeight = 32; this.x = GAME_WIDTH / 2; this.y = GAME_HEIGHT - PLAYER_BOTTOM_MARGIN - (this.shipHeight / 2); this.pivot.set(0, 0); this.drawShip(); mainContainer.addChild(this); } drawShip() { this.clear(); this.beginFill(0x44dd99); this.moveTo(0, -this.shipHeight / 2); this.lineTo(-this.shipWidth / 2, this.shipHeight / 2); this.lineTo(this.shipWidth / 2, this.shipHeight / 2); this.closePath(); this.endFill(); } move(directionFactor, delta) { const currentSpeed = PLAYER_BASE_SPEED * shipSpeedMultiplier; const moveAmount = directionFactor * currentSpeed * delta * 6; this.x += moveAmount; const halfWidth = this.shipWidth / 2; this.x = Math.max(halfWidth, Math.min(GAME_WIDTH - halfWidth, this.x)); } }
-            class Asteroid extends PIXI.Graphics { /* ... */ constructor(x, y, sizeKey, initialVelocity = null) { super(); this.sizeKey = sizeKey; const sizeData = ASTEROID_SIZES[this.sizeKey]; if (!sizeData) { return; } this.baseRadius = sizeData.baseRadius; this.pointsValue = sizeData.points; this.fragmentCount = (typeof sizeData.fragments === 'function') ? sizeData.fragments() : sizeData.fragments; this.fragmentSizeKey = sizeData.fragmentSizeKey; this.tint = sizeData.color; this.x = x !== null ? x : random(0, GAME_WIDTH); this.y = y !== null ? y : -this.baseRadius; if (initialVelocity) { this.baseSpeedX = initialVelocity.x; this.baseSpeedY = initialVelocity.y; } else { this.baseSpeedY = ASTEROID_SPEED_BASE * (1 + (ASTEROID_SIZES.large.baseRadius - this.baseRadius) / 25) * random(0.8, 1.2); this.baseSpeedX = (Math.random() - 0.5) * ASTEROID_SPEED_BASE * 0.7; } this.updateSpeed(); this.rotationSpeed = random(-0.05, 0.05); this.shapePoints = this._generateShapePoints(); this.pivot.set(0, 0); this.drawAsteroid(); mainContainer.addChild(this); } _generateShapePoints() { const points = []; const numVertices = Math.floor(random(8, 13)); for (let i = 0; i < numVertices; i++) { const angle = (i / numVertices) * Math.PI * 2; const radiusVariance = this.baseRadius * random(0.75, 1.05); points.push({ x: Math.cos(angle) * radiusVariance, y: Math.sin(angle) * radiusVariance }); } return points; } drawAsteroid() { this.clear(); this.beginFill(this.tint); if (this.shapePoints && this.shapePoints.length > 1) { this.moveTo(this.shapePoints[0].x, this.shapePoints[0].y); for (let i = 1; i < this.shapePoints.length; i++) { this.lineTo(this.shapePoints[i].x, this.shapePoints[i].y); } this.closePath(); } else { this.drawCircle(0, 0, this.baseRadius); } this.endFill(); } updateSpeed() { this.speedY = this.baseSpeedY * asteroidSpeedMultiplier; this.speedX = this.baseSpeedX * asteroidSpeedMultiplier; } update(delta) { this.updateSpeed(); const moveAmountY = this.speedY * delta * 10; const moveAmountX = this.speedX * delta * 10; this.y += moveAmountY; this.x += moveAmountX; this.rotation += this.rotationSpeed * delta; if (this.x < -this.baseRadius) this.x = GAME_WIDTH + this.baseRadius; else if (this.x > GAME_WIDTH + this.baseRadius) this.x = -this.baseRadius; } breakApart() { if (this.fragmentCount <= 0 || !this.fragmentSizeKey) return; for (let i = 0; i < this.fragmentCount; i++) { const angle = random(0, Math.PI * 2); const speedBoost = FRAGMENT_SPEED_BOOST * (1 + Math.random() * 0.5); const fragmentVelocity = { x: this.baseSpeedX * 0.5 + Math.cos(angle) * speedBoost, y: this.baseSpeedY * 0.5 + Math.sin(angle) * speedBoost * 0.8 }; const fragment = new Asteroid(this.x, this.y, this.fragmentSizeKey, fragmentVelocity); if(fragment && fragment.sizeKey) newFragments.push(fragment); } } }
-            class Laser extends PIXI.Graphics { /* ... */ constructor(x, y) { super(); this.laserWidth = 4; this.laserHeight = 20; this.speed = LASER_SPEED; this.tint = 0xff00ff; this.x = x; this.y = y; this.drawLaser(); mainContainer.addChild(this); } drawLaser() { this.clear(); this.beginFill(this.tint); this.drawRect(-this.laserWidth / 2, -this.laserHeight / 2, this.laserWidth, this.laserHeight); this.endFill(); } update(delta) { this.y -= this.speed * delta * 10; } getBoundsRect() { return { x: this.x - this.laserWidth / 2, y: this.y - this.laserHeight / 2, width: this.laserWidth, height: this.laserHeight }; } }
-            class Star extends PIXI.Graphics { /* ... */ constructor() { super(); this.x = random(0, GAME_WIDTH); this.y = random(0, GAME_HEIGHT); this.z = random(0.3, 1.0); this.radius = this.z * 1.5; this.baseSpeed = STAR_BASE_SPEED * this.z * this.z; this.speed = this.baseSpeed * asteroidSpeedMultiplier; this.alpha = 0.5 + this.z * 0.5; this.beginFill(0xFFFFFF, this.alpha); this.drawCircle(0, 0, this.radius); this.endFill(); backgroundContainer.addChild(this); } update(delta) { this.speed = this.baseSpeed * asteroidSpeedMultiplier; this.y += this.speed * delta * 10; if (this.y > GAME_HEIGHT + this.radius) { this.y = -this.radius; this.x = random(0, GAME_WIDTH); } } }
-            class HealingOrb extends PIXI.Graphics { /* ... */ constructor() { super(); this.radius = HEALING_ORB_RADIUS; this.glowRadius = this.radius * 2.5; this.x = random(this.glowRadius, GAME_WIDTH - this.glowRadius); this.y = -this.glowRadius; this.speedY = HEALING_ORB_SPEED; this.coreColor = 0x00FF00; this.glowColor = 0x33FF33; this.pulseSpeed = 0.05; this.glowAlpha = 0.3; this.pivot.set(0, 0); this.drawOrb(); mainContainer.addChild(this); } drawOrb() { this.clear(); this.beginFill(this.glowColor, this.glowAlpha); this.drawCircle(0, 0, this.glowRadius); this.endFill(); this.beginFill(this.coreColor, 0.9); this.drawCircle(0, 0, this.radius); this.endFill(); } update(delta) { this.y += this.speedY * delta * 10; this.glowAlpha = 0.2 + (Math.sin(performance.now() * this.pulseSpeed * 0.1) + 1) * 0.15; this.drawOrb(); } }
-            class EnemyOrb extends PIXI.Graphics { /* ... */ constructor() { super(); this.radius = ENEMY_ORB_RADIUS; this.glowRadius = this.radius * 2.0; this.x = random(this.glowRadius, GAME_WIDTH - this.glowRadius); this.y = -this.glowRadius; this.speedY = ENEMY_ORB_SPEED_Y; this.speedX = (Math.random() < 0.5 ? 1 : -1) * ENEMY_ORB_SPEED_X; this.coreColor = 0xFF0000; this.glowColor = 0xFF3333; this.health = ENEMY_ORB_HEALTH; this.pointsValue = ENEMY_ORB_POINTS; this.pulseSpeed = 0.06; this.glowAlpha = 0.3; this.lastShotTime = performance.now() + random(0, ENEMY_ORB_SHOOT_COOLDOWN); this.pivot.set(0, 0); this.drawOrb(); mainContainer.addChild(this); } drawOrb() { this.clear(); this.beginFill(this.glowColor, this.glowAlpha); this.drawCircle(0, 0, this.glowRadius); this.endFill(); this.beginFill(this.coreColor, 0.9); this.drawCircle(0, 0, this.radius); this.endFill(); } shoot() { const now = performance.now(); if (paused || gameOver || !player || now - this.lastShotTime < ENEMY_ORB_SHOOT_COOLDOWN) return; const targetX = player.x; const targetY = player.y; const dx = targetX - this.x; const dy = targetY - this.y; const dist = Math.sqrt(dx * dx + dy * dy); let dirX = 0; let dirY = 1; if (dist > 0.1) { dirX = dx / dist; dirY = dy / dist; } enemyLasers.push(new EnemyLaser(this.x, this.y + this.radius, dirX, dirY)); this.lastShotTime = now; } hit(damage = 1) { this.health -= damage; this.alpha = 0.6; setTimeout(() => { if(this.alpha < 1.0) this.alpha = 1.0; }, 80); return this.health <= 0; } update(delta) { this.y += this.speedY * delta * 10; this.x += this.speedX * delta * 10; if (this.x < this.radius || this.x > GAME_WIDTH - this.radius) { this.speedX *= -1; this.x = Math.max(this.radius, Math.min(GAME_WIDTH - this.radius, this.x)); } this.glowAlpha = 0.2 + (Math.sin(performance.now() * this.pulseSpeed * 0.1) + 1) * 0.15; this.drawOrb(); this.shoot(); } }
-            class EnemyLaser extends PIXI.Graphics { /* ... */ constructor(x, y, dirX = 0, dirY = 1) { super(); this.laserWidth = 5; this.laserHeight = 15; this.speed = ENEMY_LASER_SPEED; this.tint = 0xFF8C00; this.x = x; this.y = y; this.dirX = dirX; this.dirY = dirY; this.rotation = Math.atan2(this.dirY, this.dirX) + Math.PI / 2; this.drawLaser(); mainContainer.addChild(this); } drawLaser() { this.clear(); this.beginFill(this.tint); this.drawRect(-this.laserWidth / 2, -this.laserHeight / 2, this.laserWidth, this.laserHeight); this.endFill(); } update(delta) { const moveAmount = this.speed * delta * 10; this.x += this.dirX * moveAmount; this.y += this.dirY * moveAmount; } getBoundsRect() { return { x: this.x - this.laserWidth / 2, y: this.y - this.laserHeight / 2, width: this.laserWidth, height: this.laserHeight }; } }
+            // --- Game Object Classes ---
+
+            // Player Class
+            class Player extends PIXI.Graphics {
+                constructor() {
+                    super();
+                    this.shipWidth = 32; this.shipHeight = 32; // Visual dimensions
+                    this.x = GAME_WIDTH / 2; // Start centered horizontally
+                    this.y = GAME_HEIGHT - PLAYER_BOTTOM_MARGIN - (this.shipHeight / 2); // Start above bottom margin
+                    this.pivot.set(0, 0); // Set pivot to top-left for consistency (could be 0.5,0.5 if preferred)
+                    this.drawShip();
+                    mainContainer.addChild(this); // Add player to the main game container
+                }
+                // Draws the player ship shape
+                drawShip() {
+                    this.clear();
+                    this.beginFill(0x44dd99); // Teal color
+                    this.moveTo(0, -this.shipHeight / 2); // Top point (relative to this.x, this.y)
+                    this.lineTo(-this.shipWidth / 2, this.shipHeight / 2); // Bottom-left point
+                    this.lineTo(this.shipWidth / 2, this.shipHeight / 2); // Bottom-right point
+                    this.closePath(); // Connect back to top point
+                    this.endFill();
+                }
+                // Moves the player based on direction factor (-1 to 1) and delta time
+                move(directionFactor, delta) {
+                    const currentSpeed = PLAYER_BASE_SPEED * shipSpeedMultiplier;
+                    const moveAmount = directionFactor * currentSpeed * delta * 6; // Adjust multiplier for feel
+                    this.x += moveAmount;
+                    // Prevent moving off-screen horizontally
+                    const halfWidth = this.shipWidth / 2;
+                    this.x = Math.max(halfWidth, Math.min(GAME_WIDTH - halfWidth, this.x));
+                }
+            }
+
+            // Asteroid Class
+            class Asteroid extends PIXI.Graphics {
+                constructor(x, y, sizeKey, initialVelocity = null) {
+                    super();
+                    this.sizeKey = sizeKey;
+                    const sizeData = ASTEROID_SIZES[this.sizeKey];
+                    if (!sizeData) { console.error("Invalid Asteroid sizeKey:", sizeKey); return; } // Error handling
+
+                    // Assign properties from size data
+                    this.baseRadius = sizeData.baseRadius;
+                    this.pointsValue = sizeData.points;
+                    this.fragmentCount = (typeof sizeData.fragments === 'function') ? sizeData.fragments() : sizeData.fragments; // Handle potential function for fragment count
+                    this.fragmentSizeKey = sizeData.fragmentSizeKey;
+                    this.tint = sizeData.color;
+
+                    // Position: use provided or random
+                    this.x = x !== null ? x : random(0, GAME_WIDTH);
+                    this.y = y !== null ? y : -this.baseRadius; // Start off-screen top if no Y provided
+
+                    // Velocity: use initial (fragment) or generate random
+                    if (initialVelocity) {
+                        this.baseSpeedX = initialVelocity.x;
+                        this.baseSpeedY = initialVelocity.y;
+                    } else {
+                        this.baseSpeedY = ASTEROID_SPEED_BASE * (1 + (ASTEROID_SIZES.large.baseRadius - this.baseRadius) / 25) * random(0.8, 1.2); // Vary speed slightly
+                        this.baseSpeedX = (Math.random() - 0.5) * ASTEROID_SPEED_BASE * 0.7; // Random horizontal drift
+                    }
+                    this.updateSpeed(); // Calculate initial speed based on multiplier
+
+                    this.rotationSpeed = random(-0.05, 0.05); // Random spin
+                    this.shapePoints = this._generateShapePoints(); // Create irregular shape
+                    this.pivot.set(0, 0);
+                    this.drawAsteroid();
+                    mainContainer.addChild(this); // Add to main game container
+                }
+                // Generates points for an irregular polygon shape
+                _generateShapePoints() {
+                    const points = [];
+                    const numVertices = Math.floor(random(8, 13)); // Random number of vertices
+                    for (let i = 0; i < numVertices; i++) {
+                        const angle = (i / numVertices) * Math.PI * 2; // Angle for this vertex
+                        const radiusVariance = this.baseRadius * random(0.75, 1.05); // Vary radius for irregularity
+                        points.push({ x: Math.cos(angle) * radiusVariance, y: Math.sin(angle) * radiusVariance });
+                    }
+                    return points;
+                }
+                // Draws the asteroid using the generated shape points
+                drawAsteroid() {
+                    this.clear();
+                    this.beginFill(this.tint);
+                    if (this.shapePoints && this.shapePoints.length > 1) {
+                        this.moveTo(this.shapePoints[0].x, this.shapePoints[0].y);
+                        for (let i = 1; i < this.shapePoints.length; i++) {
+                            this.lineTo(this.shapePoints[i].x, this.shapePoints[i].y);
+                        }
+                        this.closePath();
+                    } else { // Fallback if shape fails
+                        this.drawCircle(0, 0, this.baseRadius);
+                    }
+                    this.endFill();
+                }
+                // Updates current speed based on base speed and global multiplier
+                updateSpeed() {
+                    this.speedY = this.baseSpeedY * asteroidSpeedMultiplier;
+                    this.speedX = this.baseSpeedX * asteroidSpeedMultiplier;
+                }
+                // Updates position and rotation based on speed and delta time
+                update(delta) {
+                    this.updateSpeed(); // Ensure speed reflects current multiplier
+                    const moveAmountY = this.speedY * delta * 10; // Adjust multiplier for feel
+                    const moveAmountX = this.speedX * delta * 10;
+                    this.y += moveAmountY;
+                    this.x += moveAmountX;
+                    this.rotation += this.rotationSpeed * delta;
+                    // Wrap horizontally if goes off screen
+                    if (this.x < -this.baseRadius) this.x = GAME_WIDTH + this.baseRadius;
+                    else if (this.x > GAME_WIDTH + this.baseRadius) this.x = -this.baseRadius;
+                }
+                // Creates fragments and adds them to the temporary newFragments array
+                breakApart() {
+                    if (this.fragmentCount <= 0 || !this.fragmentSizeKey) return; // Check if it can break
+                    for (let i = 0; i < this.fragmentCount; i++) {
+                        const angle = random(0, Math.PI * 2);
+                        const speedBoost = FRAGMENT_SPEED_BOOST * (1 + Math.random() * 0.5);
+                        const fragmentVelocity = { x: this.baseSpeedX * 0.5 + Math.cos(angle) * speedBoost, y: this.baseSpeedY * 0.5 + Math.sin(angle) * speedBoost * 0.8 };
+                        const fragment = new Asteroid(this.x, this.y, this.fragmentSizeKey, fragmentVelocity);
+                        if(fragment && fragment.sizeKey) newFragments.push(fragment); // Add to temp array
+                    }
+                }
+            }
+
+            // Player Laser Class
+            class Laser extends PIXI.Graphics {
+                constructor(x, y) {
+                    super();
+                    this.laserWidth = 4; this.laserHeight = 20;
+                    this.speed = LASER_SPEED; this.tint = 0xff00ff; // Magenta
+                    this.x = x; this.y = y;
+                    this.drawLaser();
+                    mainContainer.addChild(this);
+                }
+                drawLaser() { this.clear(); this.beginFill(this.tint); this.drawRect(-this.laserWidth / 2, -this.laserHeight / 2, this.laserWidth, this.laserHeight); this.endFill(); }
+                update(delta) { this.y -= this.speed * delta * 10; } // Move upwards
+                getBoundsRect() { return { x: this.x - this.laserWidth / 2, y: this.y - this.laserHeight / 2, width: this.laserWidth, height: this.laserHeight }; } // Helper for collision rect
+            }
+
+            // Background Star Class
+            class Star extends PIXI.Graphics {
+                constructor() {
+                    super();
+                    this.x = random(0, GAME_WIDTH); this.y = random(0, GAME_HEIGHT); // Random initial position
+                    this.z = random(0.3, 1.0); // Depth factor for parallax
+                    this.radius = this.z * 1.5; // Size based on depth
+                    this.baseSpeed = STAR_BASE_SPEED * this.z * this.z; // Speed based on depth (faster closer)
+                    this.speed = this.baseSpeed * asteroidSpeedMultiplier; // Current speed
+                    this.alpha = 0.5 + this.z * 0.5; // Brighter closer stars
+                    this.beginFill(0xFFFFFF, this.alpha); this.drawCircle(0, 0, this.radius); this.endFill();
+                    backgroundContainer.addChild(this); // Add to background layer
+                }
+                update(delta) {
+                    this.speed = this.baseSpeed * asteroidSpeedMultiplier; // Update speed based on global multiplier
+                    this.y += this.speed * delta * 10; // Move down
+                    if (this.y > GAME_HEIGHT + this.radius) { // Wrap around if off bottom
+                        this.y = -this.radius;
+                        this.x = random(0, GAME_WIDTH);
+                    }
+                }
+            }
+
+            // Healing Orb Class
+            class HealingOrb extends PIXI.Graphics {
+                constructor() {
+                    super();
+                    this.radius = HEALING_ORB_RADIUS; this.glowRadius = this.radius * 2.5;
+                    this.x = random(this.glowRadius, GAME_WIDTH - this.glowRadius); this.y = -this.glowRadius;
+                    this.speedY = HEALING_ORB_SPEED;
+                    this.coreColor = 0x00FF00; this.glowColor = 0x33FF33; // Green
+                    this.pulseSpeed = 0.05; this.glowAlpha = 0.3;
+                    this.pivot.set(0, 0); this.drawOrb(); mainContainer.addChild(this);
+                }
+                // Draws the orb with a core and a pulsing glow
+                drawOrb() {
+                    this.clear();
+                    // Glow layer
+                    this.beginFill(this.glowColor, this.glowAlpha); this.drawCircle(0, 0, this.glowRadius); this.endFill();
+                    // Core layer
+                    this.beginFill(this.coreColor, 0.9); this.drawCircle(0, 0, this.radius); this.endFill();
+                }
+                // Updates position and glow effect
+                update(delta) {
+                    this.y += this.speedY * delta * 10; // Move down
+                    this.glowAlpha = 0.2 + (Math.sin(performance.now() * this.pulseSpeed * 0.1) + 1) * 0.15; // Pulsate alpha
+                    this.drawOrb(); // Redraw needed for alpha change
+                }
+            }
+
+            // Enemy Orb Class
+            class EnemyOrb extends PIXI.Graphics {
+                constructor() {
+                    super();
+                    this.radius = ENEMY_ORB_RADIUS; this.glowRadius = this.radius * 2.0;
+                    this.x = random(this.glowRadius, GAME_WIDTH - this.glowRadius); this.y = -this.glowRadius;
+                    this.speedY = ENEMY_ORB_SPEED_Y; this.speedX = (Math.random() < 0.5 ? 1 : -1) * ENEMY_ORB_SPEED_X; // Random initial horizontal direction
+                    this.coreColor = 0xFF0000; this.glowColor = 0xFF3333; // Red
+                    this.health = ENEMY_ORB_HEALTH; this.pointsValue = ENEMY_ORB_POINTS;
+                    this.pulseSpeed = 0.06; this.glowAlpha = 0.3;
+                    this.lastShotTime = performance.now() + random(0, ENEMY_ORB_SHOOT_COOLDOWN); // Stagger initial shots
+                    this.pivot.set(0, 0); this.drawOrb(); mainContainer.addChild(this);
+                }
+                drawOrb() { /* Draws core and glow, similar to HealingOrb */ this.clear(); this.beginFill(this.glowColor, this.glowAlpha); this.drawCircle(0, 0, this.glowRadius); this.endFill(); this.beginFill(this.coreColor, 0.9); this.drawCircle(0, 0, this.radius); this.endFill(); }
+                // Fires a laser towards the player
+                shoot() {
+                    const now = performance.now();
+                    if (paused || gameOver || !player || now - this.lastShotTime < ENEMY_ORB_SHOOT_COOLDOWN) return; // Cooldown and checks
+                    const targetX = player.x; const targetY = player.y;
+                    const dx = targetX - this.x; const dy = targetY - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    let dirX = 0; let dirY = 1; // Default down
+                    if (dist > 0.1) { dirX = dx / dist; dirY = dy / dist; } // Normalize direction vector
+                    enemyLasers.push(new EnemyLaser(this.x, this.y + this.radius, dirX, dirY)); // Create laser with direction
+                    this.lastShotTime = now;
+                }
+                // Registers a hit, returns true if health is depleted
+                hit(damage = 1) {
+                    this.health -= damage;
+                    this.alpha = 0.6; // Flash alpha on hit
+                    setTimeout(() => { if(this.alpha < 1.0) this.alpha = 1.0; }, 80); // Restore alpha
+                    return this.health <= 0;
+                }
+                // Updates position, glow, and attempts to shoot
+                update(delta) {
+                    this.y += this.speedY * delta * 10; this.x += this.speedX * delta * 10; // Move
+                    if (this.x < this.radius || this.x > GAME_WIDTH - this.radius) { this.speedX *= -1; this.x = Math.max(this.radius, Math.min(GAME_WIDTH - this.radius, this.x)); } // Bounce horizontally
+                    this.glowAlpha = 0.2 + (Math.sin(performance.now() * this.pulseSpeed * 0.1) + 1) * 0.15; // Pulse glow
+                    this.drawOrb(); this.shoot();
+                }
+            }
+
+            // Enemy Laser Class
+            class EnemyLaser extends PIXI.Graphics {
+                constructor(x, y, dirX = 0, dirY = 1) { // Takes direction vector
+                    super();
+                    this.laserWidth = 5; this.laserHeight = 15;
+                    this.speed = ENEMY_LASER_SPEED; this.tint = 0xFF8C00; // Orange
+                    this.x = x; this.y = y;
+                    this.dirX = dirX; this.dirY = dirY; // Store direction
+                    this.rotation = Math.atan2(this.dirY, this.dirX) + Math.PI / 2; // Rotate to face direction
+                    this.drawLaser();
+                    mainContainer.addChild(this);
+                }
+                drawLaser() { this.clear(); this.beginFill(this.tint); this.drawRect(-this.laserWidth / 2, -this.laserHeight / 2, this.laserWidth, this.laserHeight); this.endFill(); }
+                // Moves laser along its stored direction vector
+                update(delta) {
+                    const moveAmount = this.speed * delta * 10;
+                    this.x += this.dirX * moveAmount;
+                    this.y += this.dirY * moveAmount;
+                }
+                getBoundsRect() { return { x: this.x - this.laserWidth / 2, y: this.y - this.laserHeight / 2, width: this.laserWidth, height: this.laserHeight }; }
+            }
 
             // --- UI Update Functions ---
-            function updateScoreUI() { if(scoreDisplay) scoreDisplay.textContent = `Score: ${score}`; if (gameOverOverlay && gameOverScoreText) { gameOverScoreText.text = `Final Score: ${score}\n(Click to Play Again)`; } }
+            function updateScoreUI() { if(scoreDisplay) scoreDisplay.textContent = `Score: ${score}`; if (gameOverOverlay && gameOverScoreText) { gameOverScoreText.text = `Final Score: ${score}\n(Press Fire/Space to Play Again)`; } }
             function updateLivesUI() { if(livesDisplay){ const heart = '❤️'; const lostHeart = '🖤'; livesDisplay.textContent = `Lives: ${heart.repeat(lives)}${lostHeart.repeat(Math.max(0, STARTING_LIVES - lives))}`; }}
 
-            // --- Pause/Resume/Overlay ---
-            function togglePause() { /* ... */ if (gameOver) return; paused = !paused; console.log("Paused:", paused); if (paused) { app.ticker.stop(); if (!pauseOverlay) { pauseOverlay = createOverlay("PAUSED", "(Press 'P' to Resume)"); uiContainerPixi.addChild(pauseOverlay); } pauseOverlay.visible = true; } else { if (pauseOverlay) { pauseOverlay.visible = false; } if (app.ticker && !app.ticker.started) app.ticker.start(); } }
-            function createOverlay(title, scoreTextContent = null) { /* ... */ const overlay = new PIXI.Container(); overlay.x = 0; overlay.y = 0; overlay.width = GAME_WIDTH; overlay.height = GAME_HEIGHT; overlay.interactive = true; const background = new PIXI.Graphics(); background.beginFill(0x000000, 0.7); background.drawRect(0, 0, GAME_WIDTH, GAME_HEIGHT); background.endFill(); overlay.addChild(background); const titleStyle = new PIXI.TextStyle({ fill: '#ffffff', fontSize: 48, align: 'center', dropShadow: true, dropShadowColor: '#000000', dropShadowBlur: 4, dropShadowDistance: 4 }); const titleText = new PIXI.Text(title, titleStyle); titleText.anchor.set(0.5); titleText.x = GAME_WIDTH / 2; titleText.y = GAME_HEIGHT / 2 - (scoreTextContent ? 50 : 0); overlay.addChild(titleText); if (scoreTextContent) { const subtitleStyle = new PIXI.TextStyle({ fill: '#cccccc', fontSize: 24, align: 'center', lineHeight: 30 }); const subtitleText = new PIXI.Text(scoreTextContent, subtitleStyle); subtitleText.anchor.set(0.5); subtitleText.x = GAME_WIDTH / 2; subtitleText.y = GAME_HEIGHT / 2 + 30; overlay.addChild(subtitleText); if (title === "GAME OVER") { gameOverScoreText = subtitleText; } } return overlay; }
-
-            // --- Game Functions ---
-            function spawnAsteroid() { /* ... */ if (!paused && !gameOver && asteroids.length < MAX_ASTEROIDS && Math.random() < ASTEROID_SPAWN_RATE) { const sizeKey = Math.random() < 0.6 ? 'large' : 'medium'; asteroids.push(new Asteroid(null, null, sizeKey)); return true; } return false; }
-            function spawnHealingOrb() { /* ... */ if (!paused && !gameOver && healingOrbs.length < MAX_HEALING_ORBS && Math.random() < HEALING_ORB_SPAWN_CHANCE) { healingOrbs.push(new HealingOrb()); return true; } return false; }
-            function spawnEnemyOrb() { /* ... */ if (!paused && !gameOver && enemyOrbs.length < MAX_ENEMY_ORBS && Math.random() < ENEMY_ORB_SPAWN_CHANCE) { enemyOrbs.push(new EnemyOrb()); return true; } return false; }
-            function fireLaser() { /* ... */ const now = performance.now(); if (!player || paused || gameOver || now - lastLaserTime < LASER_COOLDOWN) return; lastLaserTime = now; lasers.push(new Laser(player.x, player.y - player.shipHeight / 2)); }
-            // Collision Checks
-            function checkPlayerAsteroidCollision(player, asteroid) { /* ... */ if (!player || !asteroid) return false; const distance = checkDistance(player.x, player.y, asteroid.x, asteroid.y); return distance < asteroid.baseRadius + (player.shipWidth * 0.4); }
-            function checkLaserAsteroidCollision(laser, asteroid) { /* ... */ if (!laser || !asteroid) return false; const laserRect = laser.getBoundsRect(); const circleDistanceX = Math.abs(asteroid.x - (laserRect.x + laserRect.width / 2)); const circleDistanceY = Math.abs(asteroid.y - (laserRect.y + laserRect.height / 2)); if (circleDistanceX > (laserRect.width / 2 + asteroid.baseRadius)) { return false; } if (circleDistanceY > (laserRect.height / 2 + asteroid.baseRadius)) { return false; } if (circleDistanceX <= (laserRect.width / 2)) { return true; } if (circleDistanceY <= (laserRect.height / 2)) { return true; } const cornerDistance_sq = Math.pow(circleDistanceX - laserRect.width / 2, 2) + Math.pow(circleDistanceY - laserRect.height / 2, 2); return (cornerDistance_sq <= Math.pow(asteroid.baseRadius, 2)); }
-            function checkPlayerOrbCollision(player, orb) { /* ... */ if (!player || !orb) return false; const distance = checkDistance(player.x, player.y, orb.x, orb.y); return distance < orb.radius + (player.shipWidth * 0.4); }
-            function checkLaserHealingOrbCollision(laser, orb) { /* ... */ if (!laser || !orb) return false; const laserRect = laser.getBoundsRect(); const circleDistanceX = Math.abs(orb.x - (laserRect.x + laserRect.width / 2)); const circleDistanceY = Math.abs(orb.y - (laserRect.y + laserRect.height / 2)); if (circleDistanceX > (laserRect.width / 2 + orb.radius)) { return false; } if (circleDistanceY > (laserRect.height / 2 + orb.radius)) { return false; } if (circleDistanceX <= (laserRect.width / 2)) { return true; } if (circleDistanceY <= (laserRect.height / 2)) { return true; } const cornerDistance_sq = Math.pow(circleDistanceX - laserRect.width / 2, 2) + Math.pow(circleDistanceY - laserRect.height / 2, 2); return (cornerDistance_sq <= Math.pow(orb.radius, 2)); }
-            function checkPlayerEnemyOrbCollision(player, enemyOrb) { /* ... */ if (!player || !enemyOrb) return false; const distance = checkDistance(player.x, player.y, enemyOrb.x, enemyOrb.y); return distance < enemyOrb.radius + (player.shipWidth * 0.4); }
-            function checkLaserEnemyOrbCollision(laser, enemyOrb) { /* ... */ if (!laser || !enemyOrb) return false; const laserRect = laser.getBoundsRect(); const circleDistanceX = Math.abs(enemyOrb.x - (laserRect.x + laserRect.width / 2)); const circleDistanceY = Math.abs(enemyOrb.y - (laserRect.y + laserRect.height / 2)); if (circleDistanceX > (laserRect.width / 2 + enemyOrb.radius)) { return false; } if (circleDistanceY > (laserRect.height / 2 + enemyOrb.radius)) { return false; } if (circleDistanceX <= (laserRect.width / 2)) { return true; } if (circleDistanceY <= (laserRect.height / 2)) { return true; } const cornerDistance_sq = Math.pow(circleDistanceX - laserRect.width / 2, 2) + Math.pow(circleDistanceY - laserRect.height / 2, 2); return (cornerDistance_sq <= Math.pow(enemyOrb.radius, 2)); }
-            // --- MODIFIED: checkEnemyLaserPlayerCollision (Rect vs Rect) ---
-            function checkEnemyLaserPlayerCollision(enemyLaser, player) {
-                if (!enemyLaser || !player || enemyLaser.destroyed || player.destroyed) return false;
-
-                const laserRect = enemyLaser.getBoundsRect();
-                // Approximate player bounds (centered) - Adjust padding if needed
-                const playerPaddingX = player.shipWidth * 0.2; // Smaller hitbox than visual width
-                const playerPaddingY = player.shipHeight * 0.2;
-                const playerRect = {
-                    x: player.x - (player.shipWidth / 2) + playerPaddingX,
-                    y: player.y - (player.shipHeight / 2) + playerPaddingY,
-                    width: player.shipWidth - 2 * playerPaddingX,
-                    height: player.shipHeight - 2 * playerPaddingY
-                };
-
-                // Standard AABB collision check
-                return laserRect.x < playerRect.x + playerRect.width &&
-                       laserRect.x + laserRect.width > playerRect.x &&
-                       laserRect.y < playerRect.y + playerRect.height &&
-                       laserRect.y + laserRect.height > playerRect.y;
+            // --- Pause/Resume/Overlay Functions ---
+            function togglePause() {
+                if (gameOver) return;
+                paused = !paused;
+                if (paused) {
+                    app.ticker.stop();
+                    if (!pauseOverlay) { pauseOverlay = createOverlay("PAUSED", "(Press 'P' to Resume)"); uiContainerPixi.addChild(pauseOverlay); }
+                    pauseOverlay.visible = true;
+                } else {
+                    if (pauseOverlay) { pauseOverlay.visible = false; }
+                    if (app.ticker && !app.ticker.started) app.ticker.start(); // Resume ticker only if stopped
+                }
             }
-            // --- End Modification ---
-            // Actions
-            function playerHit() { /* ... */ if (gameOver || paused) return; lives--; updateLivesUI(); if (player) { player.alpha = 0.5; setTimeout(() => { if(player && player.alpha < 1.0) player.alpha = 1.0; }, 150); } if (lives <= 0) { endGame(); } }
-            function asteroidDestroyed(asteroid) { /* ... */ if (!asteroid || asteroid.destroyed) return; score += asteroid.pointsValue; updateScoreUI(); asteroid.breakApart(); if(asteroid.parent) asteroid.parent.removeChild(asteroid); asteroid.destroy(); }
-            function enemyOrbDestroyed(enemyOrb) { /* ... simplified ... */ if (!enemyOrb || enemyOrb.destroyed) return; score += enemyOrb.pointsValue; updateScoreUI(); if(enemyOrb.parent) mainContainer.removeChild(enemyOrb); enemyOrb.destroy({ children: true }); }
-            function endGame() { /* ... */ if (gameOver) return; gameOver = true; paused = false; console.log(`Game Over! Final Score: ${score}`); updateScoreUI(); app.ticker.stop(); if (pauseOverlay) pauseOverlay.visible = false; const finalScoreText = `Final Score: ${score}\n(Click to Play Again)`; if (!gameOverOverlay) { gameOverOverlay = createOverlay(`GAME OVER`, finalScoreText); gameOverOverlay.buttonMode = true; gameOverOverlay.on('pointerdown', () => { console.log("Replay clicked!"); uiContainerPixi.removeChild(gameOverOverlay); gameOverOverlay.destroy({ children: true }); gameOverOverlay = null; gameOverScoreText = null; init(); }); uiContainerPixi.addChild(gameOverOverlay); } else { if (gameOverScoreText) gameOverScoreText.text = finalScoreText; } gameOverOverlay.visible = true; }
+            // Helper to create text overlays (Pause/Game Over)
+            function createOverlay(title, scoreTextContent = null) {
+                const overlay = new PIXI.Container();
+                overlay.interactive = true; // Block clicks through
+                const background = new PIXI.Graphics().beginFill(0x000000, 0.7).drawRect(0, 0, GAME_WIDTH, GAME_HEIGHT).endFill();
+                overlay.addChild(background);
+                const titleStyle = new PIXI.TextStyle({ fill: '#ffffff', fontSize: 48, align: 'center', dropShadow: true, dropShadowColor: '#000000', dropShadowBlur: 4, dropShadowDistance: 4 });
+                const titleText = new PIXI.Text(title, titleStyle);
+                titleText.anchor.set(0.5); titleText.x = GAME_WIDTH / 2; titleText.y = GAME_HEIGHT / 2 - (scoreTextContent ? 50 : 0);
+                overlay.addChild(titleText);
+                if (scoreTextContent) {
+                    const subtitleStyle = new PIXI.TextStyle({ fill: '#cccccc', fontSize: 24, align: 'center', lineHeight: 30 });
+                    const subtitleText = new PIXI.Text(scoreTextContent, subtitleStyle);
+                    subtitleText.anchor.set(0.5); subtitleText.x = GAME_WIDTH / 2; subtitleText.y = GAME_HEIGHT / 2 + 30;
+                    overlay.addChild(subtitleText);
+                    if (title === "GAME OVER") { gameOverScoreText = subtitleText; } // Store ref to update score later
+                }
+                return overlay;
+            }
 
-            // --- Input Handling ---
-            function setupInputListeners() { /* ... unchanged ... */ console.log("Setting up input listeners..."); const shootButton = document.getElementById('shootButton'); const slider = document.getElementById('movementSlider'); if (!shootButton || !slider ) { console.error("UI element(s) not found!"); return; } function handleSliderInput() { if (!gameOver && !paused) { sliderMovementFactor = ((slider.value / 100) * 2) - 1; } } function resetSlider() { slider.value = 50; sliderMovementFactor = 0; } slider.addEventListener('input', handleSliderInput); slider.addEventListener('touchend', resetSlider, { passive: false }); slider.addEventListener('mouseup', resetSlider); slider.addEventListener('mouseout', resetSlider); shootButton.addEventListener('touchstart', (e) => { if (!gameOver && !paused) firePressed = true; e.preventDefault(); }, { passive: false }); shootButton.addEventListener('touchend', (e) => { firePressed = false; e.preventDefault(); }, { passive: false }); shootButton.addEventListener('mousedown', () => { if (!gameOver && !paused) firePressed = true; }); shootButton.addEventListener('mouseup', () => { firePressed = false; }); shootButton.addEventListener('mouseout', () => { if(firePressed) firePressed = false; }); window.addEventListener('keydown', (e) => { if (e.key === 'p' || e.key === 'P') { togglePause(); return; } if (gameOver || paused || e.repeat) return; if (e.key === 'ArrowLeft' || e.key === 'a') { leftPressed = true; } if (e.key === 'ArrowRight' || e.key === 'd') { rightPressed = true; } if (e.key === ' ' || e.key === 'ArrowUp') { firePressed = true; e.preventDefault(); } }); window.addEventListener('keyup', (e) => { if (e.key === 'ArrowLeft' || e.key === 'a') { leftPressed = false; } if (e.key === 'ArrowRight' || e.key === 'd') { rightPressed = false; } if (e.key === ' ' || e.key === 'ArrowUp') { firePressed = false; } }); console.log("Input listeners attached."); }
+            // --- Core Game Logic Functions ---
+            function spawnAsteroid() { if (!paused && !gameOver && asteroids.length < MAX_ASTEROIDS && Math.random() < ASTEROID_SPAWN_RATE) { const sizeKey = Math.random() < 0.6 ? 'large' : 'medium'; asteroids.push(new Asteroid(null, null, sizeKey)); } }
+            function spawnHealingOrb() { if (!paused && !gameOver && healingOrbs.length < MAX_HEALING_ORBS && Math.random() < HEALING_ORB_SPAWN_CHANCE) { healingOrbs.push(new HealingOrb()); } }
+            function spawnEnemyOrb() { if (!paused && !gameOver && enemyOrbs.length < MAX_ENEMY_ORBS && Math.random() < ENEMY_ORB_SPAWN_CHANCE) { enemyOrbs.push(new EnemyOrb()); } }
+            function fireLaser() { const now = performance.now(); if (!player || paused || gameOver || now - lastLaserTime < LASER_COOLDOWN) return; lastLaserTime = now; lasers.push(new Laser(player.x, player.y - player.shipHeight / 2)); }
+            // Collision Check Functions (Rectangle approximation for player, Circle for orbs/asteroids)
+            function checkPlayerAsteroidCollision(player, asteroid) { if (!player || !asteroid) return false; const distance = checkDistance(player.x, player.y, asteroid.x, asteroid.y); return distance < asteroid.baseRadius + (player.shipWidth * 0.4); }
+            function checkLaserAsteroidCollision(laser, asteroid) { if (!laser || !asteroid) return false; const laserRect = laser.getBoundsRect(); const circleDistanceX = Math.abs(asteroid.x - (laserRect.x + laserRect.width / 2)); const circleDistanceY = Math.abs(asteroid.y - (laserRect.y + laserRect.height / 2)); if (circleDistanceX > (laserRect.width / 2 + asteroid.baseRadius)) { return false; } if (circleDistanceY > (laserRect.height / 2 + asteroid.baseRadius)) { return false; } if (circleDistanceX <= (laserRect.width / 2)) { return true; } if (circleDistanceY <= (laserRect.height / 2)) { return true; } const cornerDistance_sq = Math.pow(circleDistanceX - laserRect.width / 2, 2) + Math.pow(circleDistanceY - laserRect.height / 2, 2); return (cornerDistance_sq <= Math.pow(asteroid.baseRadius, 2)); }
+            function checkPlayerOrbCollision(player, orb) { if (!player || !orb) return false; const distance = checkDistance(player.x, player.y, orb.x, orb.y); return distance < orb.radius + (player.shipWidth * 0.4); }
+            function checkLaserHealingOrbCollision(laser, orb) { if (!laser || !orb) return false; const laserRect = laser.getBoundsRect(); const circleDistanceX = Math.abs(orb.x - (laserRect.x + laserRect.width / 2)); const circleDistanceY = Math.abs(orb.y - (laserRect.y + laserRect.height / 2)); if (circleDistanceX > (laserRect.width / 2 + orb.radius)) { return false; } if (circleDistanceY > (laserRect.height / 2 + orb.radius)) { return false; } if (circleDistanceX <= (laserRect.width / 2)) { return true; } if (circleDistanceY <= (laserRect.height / 2)) { return true; } const cornerDistance_sq = Math.pow(circleDistanceX - laserRect.width / 2, 2) + Math.pow(circleDistanceY - laserRect.height / 2, 2); return (cornerDistance_sq <= Math.pow(orb.radius, 2)); }
+            function checkPlayerEnemyOrbCollision(player, enemyOrb) { if (!player || !enemyOrb) return false; const distance = checkDistance(player.x, player.y, enemyOrb.x, enemyOrb.y); return distance < enemyOrb.radius + (player.shipWidth * 0.4); }
+            function checkLaserEnemyOrbCollision(laser, enemyOrb) { if (!laser || !enemyOrb) return false; const laserRect = laser.getBoundsRect(); const circleDistanceX = Math.abs(enemyOrb.x - (laserRect.x + laserRect.width / 2)); const circleDistanceY = Math.abs(enemyOrb.y - (laserRect.y + laserRect.height / 2)); if (circleDistanceX > (laserRect.width / 2 + enemyOrb.radius)) { return false; } if (circleDistanceY > (laserRect.height / 2 + enemyOrb.radius)) { return false; } if (circleDistanceX <= (laserRect.width / 2)) { return true; } if (circleDistanceY <= (laserRect.height / 2)) { return true; } const cornerDistance_sq = Math.pow(circleDistanceX - laserRect.width / 2, 2) + Math.pow(circleDistanceY - laserRect.height / 2, 2); return (cornerDistance_sq <= Math.pow(enemyOrb.radius, 2)); }
+            function checkEnemyLaserPlayerCollision(enemyLaser, player) { if (!enemyLaser || !player || enemyLaser.destroyed || player.destroyed) return false; const laserRect = enemyLaser.getBoundsRect(); const playerPaddingX = player.shipWidth * 0.2; const playerPaddingY = player.shipHeight * 0.2; const playerRect = { x: player.x - (player.shipWidth / 2) + playerPaddingX, y: player.y - (player.shipHeight / 2) + playerPaddingY, width: player.shipWidth - 2 * playerPaddingX, height: player.shipHeight - 2 * playerPaddingY }; return laserRect.x < playerRect.x + playerRect.width && laserRect.x + laserRect.width > playerRect.x && laserRect.y < playerRect.y + playerRect.height && laserRect.y + laserRect.height > playerRect.y; }
+            // Action Functions
+            function playerHit() { if (gameOver || paused) return; lives--; updateLivesUI(); if (player) { player.alpha = 0.5; setTimeout(() => { if(player && player.alpha < 1.0) player.alpha = 1.0; }, 150); } if (lives <= 0) { endGame(); } }
+            function asteroidDestroyed(asteroid) { if (!asteroid || asteroid.destroyed) return; score += asteroid.pointsValue; updateScoreUI(); asteroid.breakApart(); if(asteroid.parent) asteroid.parent.removeChild(asteroid); asteroid.destroy(); }
+            function enemyOrbDestroyed(enemyOrb) { if (!enemyOrb || enemyOrb.destroyed) return; score += enemyOrb.pointsValue; updateScoreUI(); if(enemyOrb.parent) mainContainer.removeChild(enemyOrb); enemyOrb.destroy({ children: true }); }
+            // Removed explodeEnemyOrb function
+            function endGame() {
+                if (gameOver) return; gameOver = true; paused = false;
+                console.log(`Game Over! Final Score: ${score}`); updateScoreUI(); // Update score display one last time
+                app.ticker.stop(); if (pauseOverlay) pauseOverlay.visible = false;
+                const finalScoreText = `Final Score: ${score}\n(Press Fire/Space to Play Again)`;
+                if (!gameOverOverlay) {
+                    gameOverOverlay = createOverlay(`GAME OVER`, finalScoreText);
+                    // No pointerdown listener needed here anymore
+                    uiContainerPixi.addChild(gameOverOverlay);
+                } else { if (gameOverScoreText) gameOverScoreText.text = finalScoreText; }
+                gameOverOverlay.visible = true;
+            }
+            // Function to handle game restart
+             function restartGame() {
+                 if (gameOverOverlay && gameOverOverlay.parent) {
+                     console.log("Restarting game...");
+                     uiContainerPixi.removeChild(gameOverOverlay);
+                     gameOverOverlay.destroy({ children: true }); // Clean up overlay resources
+                     gameOverOverlay = null; gameOverScoreText = null;
+                     init(); // Re-initialize the game
+                 }
+             }
 
-            // --- Game Loop ---
+            // --- Input Handling Setup (Called Once) ---
+            function setupInputListeners() {
+                 console.log("Setting up input listeners...");
+                 if (!shootButton || !movementSlider ) { console.error("UI element(s) not found!"); return; } // Check necessary elements
+                 // Slider listeners
+                 function handleSliderInput() { if (!gameOver && !paused) { sliderMovementFactor = ((movementSlider.value / 100) * 2) - 1; } }
+                 function resetSlider() { movementSlider.value = 50; sliderMovementFactor = 0; }
+                 movementSlider.addEventListener('input', handleSliderInput); movementSlider.addEventListener('touchend', resetSlider, { passive: false }); movementSlider.addEventListener('mouseup', resetSlider); movementSlider.addEventListener('mouseout', resetSlider);
+                 // Fire button listeners (handles restart)
+                 shootButton.addEventListener('touchstart', (e) => { if (gameOver) { restartGame(); } else if (!paused) { firePressed = true; } e.preventDefault(); }, { passive: false });
+                 shootButton.addEventListener('touchend', (e) => { firePressed = false; e.preventDefault(); }, { passive: false });
+                 shootButton.addEventListener('mousedown', () => { if (gameOver) { restartGame(); } else if (!paused) { firePressed = true; } });
+                 shootButton.addEventListener('mouseup', () => { firePressed = false; });
+                 shootButton.addEventListener('mouseout', () => { if(firePressed) firePressed = false; });
+                 // Keyboard listeners (handles restart)
+                 window.addEventListener('keydown', (e) => {
+                    if (e.key === 'p' || e.key === 'P') { togglePause(); return; }
+                    if (gameOver && (e.key === ' ' || e.key === 'ArrowUp')) { restartGame(); return; } // Restart on Space/Up when game over
+                    if (gameOver || paused || e.repeat) return;
+                    if (e.key === 'ArrowLeft' || e.key === 'a') { leftPressed = true; }
+                    if (e.key === 'ArrowRight' || e.key === 'd') { rightPressed = true; }
+                    if (e.key === ' ' || e.key === 'ArrowUp') { firePressed = true; e.preventDefault(); }
+                 });
+                 window.addEventListener('keyup', (e) => {
+                    if (e.key === 'ArrowLeft' || e.key === 'a') { leftPressed = false; }
+                    if (e.key === 'ArrowRight' || e.key === 'd') { rightPressed = false; }
+                    if (e.key === ' ' || e.key === 'ArrowUp') { firePressed = false; }
+                 });
+                 console.log("Input listeners attached.");
+             }
+
+            // --- Main Game Loop ---
             function gameLoop(delta) {
-                if (paused || gameOver) return; loopCounter++;
-                try {
+                // Exit if paused or game over
+                if (paused || gameOver) return;
+                loopCounter++; // Increment frame counter
+
+                try { // Wrap loop logic in try-catch for error handling
+                    // Update background elements
                     stars.forEach(star => star.update(delta));
-                    if (player && !player.destroyed) { let moveInputFactor = 0; if (leftPressed) { moveInputFactor = -1.0; } else if (rightPressed) { moveInputFactor = 1.0; } else { moveInputFactor = sliderMovementFactor; } if (moveInputFactor !== 0) { player.move(moveInputFactor, delta); } if (firePressed) { fireLaser(); } }
+
+                    // Update player movement and shooting
+                    if (player && !player.destroyed) {
+                        let moveInputFactor = 0;
+                        if (leftPressed) { moveInputFactor = -1.0; }      // Keyboard left takes precedence
+                        else if (rightPressed) { moveInputFactor = 1.0; } // Keyboard right takes precedence
+                        else { moveInputFactor = sliderMovementFactor; }   // Use slider if no keys pressed
+                        if (moveInputFactor !== 0) { player.move(moveInputFactor, delta); } // Move player if needed
+                        if (firePressed) { fireLaser(); }                  // Fire laser if button/key held
+                    }
+
+                    // Spawn new entities periodically
                     spawnAsteroid(); spawnHealingOrb(); spawnEnemyOrb();
 
-                    // --- Updates ---
+                    // --- Update all active game entities ---
+                    // (Updating positions before collision checks)
                     healingOrbs.forEach(h => { if(h && !h.destroyed) h.update(delta); });
                     enemyOrbs.forEach(e => { if(e && !e.destroyed) e.update(delta); });
                     asteroids.forEach(a => { if(a && !a.destroyed) a.update(delta); });
                     lasers.forEach(l => { if(l && !l.destroyed) l.update(delta); });
                     enemyLasers.forEach(el => { if(el && !el.destroyed) el.update(delta); });
 
-                    // --- Collision Checks ---
-                    // Player Collisions
+                    // --- Collision Detection and Resolution ---
+                    // Player collisions (only if player exists and isn't destroyed)
                     if(player && !player.destroyed) {
+                        // vs Asteroids
                         for (let i = asteroids.length - 1; i >= 0; i--) { const asteroid = asteroids[i]; if (!asteroid || asteroid.destroyed) continue; if (checkPlayerAsteroidCollision(player, asteroid)) { playerHit(); asteroidDestroyed(asteroid); asteroids.splice(i, 1); if(gameOver) return; } }
+                        // vs Healing Orbs
                         for (let i = healingOrbs.length - 1; i >= 0; i--) { const orb = healingOrbs[i]; if (!orb || orb.destroyed) continue; if (checkPlayerOrbCollision(player, orb)) { if (lives < STARTING_LIVES) { lives++; updateLivesUI(); } if(orb.parent) mainContainer.removeChild(orb); orb.destroy(); healingOrbs.splice(i, 1); } }
+                        // vs Enemy Orbs
                         for (let i = enemyOrbs.length - 1; i >= 0; i--) { const enemy = enemyOrbs[i]; if (!enemy || enemy.destroyed) continue; if (checkPlayerEnemyOrbCollision(player, enemy)) { playerHit(); enemyOrbDestroyed(enemy); enemyOrbs.splice(i, 1); if(gameOver) return; } }
-                        // --- MODIFIED: Enemy Laser vs Player Collision Check ---
-                        for (let i = enemyLasers.length - 1; i >= 0; i--) {
-                            const eLaser = enemyLasers[i];
-                            if (!eLaser || eLaser.destroyed) continue;
-                            if (checkEnemyLaserPlayerCollision(eLaser, player)) { // Use the updated function
-                                console.log(">>> Player hit by enemy laser confirmed <<<"); // Add specific log
-                                playerHit();
-                                if(eLaser.parent) mainContainer.removeChild(eLaser);
-                                eLaser.destroy();
-                                enemyLasers.splice(i, 1);
-                                if(gameOver) return;
-                            }
-                        }
-                         // --- End Modification ---
+                        // vs Enemy Lasers
+                        for (let i = enemyLasers.length - 1; i >= 0; i--) { const eLaser = enemyLasers[i]; if (!eLaser || eLaser.destroyed) continue; if (checkEnemyLaserPlayerCollision(eLaser, player)) { playerHit(); if(eLaser.parent) mainContainer.removeChild(eLaser); eLaser.destroy(); enemyLasers.splice(i, 1); if(gameOver) return; } }
                     }
 
-                    // Player Laser Collisions
+                    // Player Laser collisions
                     for (let i = lasers.length - 1; i >= 0; i--) {
                          const laser = lasers[i]; if (!laser || laser.destroyed) continue; let laserRemoved = false;
                          // Vs Asteroids
@@ -1310,42 +1703,82 @@ void main(void)\r
                          for (let m = healingOrbs.length - 1; m >= 0; m--) { const hOrb = healingOrbs[m]; if (!hOrb || hOrb.destroyed) continue; if (checkLaserHealingOrbCollision(laser, hOrb)) { if (lives < STARTING_LIVES) { lives++; updateLivesUI(); } score += HEALING_ORB_POINTS; updateScoreUI(); if(hOrb.parent) mainContainer.removeChild(hOrb); hOrb.destroy(); healingOrbs.splice(m, 1); if(laser.parent) mainContainer.removeChild(laser); laser.destroy(); lasers.splice(i, 1); laserRemoved = true; break; } } if (laserRemoved) continue;
                     }
 
-                    // --- Cleanup Offscreen & New Fragments ---
+                    // --- Cleanup Offscreen Entities & Add New Fragments ---
+                    // (Using filter for concise cleanup)
                     asteroids = asteroids.filter(a => { if (a.y <= GAME_HEIGHT + a.baseRadius * 2) return true; else { if(a.parent) mainContainer.removeChild(a); if(!a.destroyed) a.destroy(); return false; } });
                     lasers = lasers.filter(l => { if (l.y >= -l.laserHeight) return true; else { if(l.parent) mainContainer.removeChild(l); if(!l.destroyed) l.destroy(); return false; } });
                     healingOrbs = healingOrbs.filter(h => { if (h.y <= GAME_HEIGHT + h.glowRadius) return true; else { if(h.parent) mainContainer.removeChild(h); if(!h.destroyed) h.destroy(); return false; } });
                     enemyOrbs = enemyOrbs.filter(e => { if (e.y <= GAME_HEIGHT + e.glowRadius) return true; else { if(e.parent) mainContainer.removeChild(e); if(!e.destroyed) e.destroy(); return false; } });
                     enemyLasers = enemyLasers.filter(el => { if (el.y <= GAME_HEIGHT + el.laserHeight && el.y >= -el.laserHeight && el.x >= -el.laserWidth && el.x <= GAME_WIDTH + el.laserWidth ) return true; else { if(el.parent) mainContainer.removeChild(el); if(!el.destroyed) el.destroy(); return false; } });
-                    if (newFragments.length > 0) { asteroids.push(...newFragments); newFragments = []; }
 
-                } catch (error) { console.error("ERROR IN GAME LOOP:", error); }
+                    // Add fragments created during this frame to the main array
+                    if (newFragments.length > 0) {
+                        asteroids.push(...newFragments);
+                        newFragments = []; // Clear the temporary array
+                    }
+
+                } catch (error) {
+                    console.error("ERROR IN GAME LOOP:", error); // Log errors during the loop
+                    // Consider pausing or stopping the game on critical errors
+                    // app.ticker.stop();
+                    // paused = true;
+                }
             } // End of gameLoop
 
-            // --- Initialization ---
+            // --- Initialization Function ---
             function init() {
                  console.log("INIT START");
+                 // Reset Game State
                  gameOver = false; paused = false; leftPressed = false; rightPressed = false; firePressed = false;
-                 lastLaserTime = 0; loopCounter = 0; score = 0; lives = STARTING_LIVES;
+                 lastLaserTime = 0; loopCounter = 0; score = 0; lives = STARTING_LIVES; // Use constant
+                 // Reset entity arrays
                  asteroids = []; lasers = []; stars = []; healingOrbs = []; enemyOrbs = []; enemyLasers = []; newFragments = [];
+                 // Reset slider state
                  sliderMovementFactor = 0.0; if (movementSlider) movementSlider.value = 50;
+
+                 // Clear Pixi Containers
                  mainContainer.removeChildren(); backgroundContainer.removeChildren(); uiContainerPixi.removeChildren();
+                 // Reset overlay references
                  pauseOverlay = null; gameOverOverlay = null; gameOverScoreText = null;
+
+                 // Update HTML UI elements
                  updateScoreUI(); updateLivesUI();
+
+                 // Create initial game objects
                  console.log(`Creating ${STAR_COUNT} stars...`); for (let i = 0; i < STAR_COUNT; i++) { stars.push(new Star()); }
                  console.log("Creating Player..."); player = new Player(); if (!player) { console.error("INIT FAIL: Player creation FAILED!"); return; }
-                 console.log("Managing ticker for new game..."); if (app.ticker) { app.ticker.remove(gameLoop); app.ticker.add(gameLoop); if (!app.ticker.started) { app.ticker.start(); } console.log("Ticker configured. Started:", app.ticker.started); } else { console.error("Ticker object NOT AVAILABLE in init!"); }
+
+                 // Ensure the game ticker is running
+                 console.log("Managing ticker for new game...");
+                 if (app.ticker) {
+                     app.ticker.remove(gameLoop); // Remove listener if it exists
+                     app.ticker.add(gameLoop);    // Add the main loop function
+                     if (!app.ticker.started) { app.ticker.start(); } // Start if not running
+                     console.log("Ticker configured. Started:", app.ticker.started);
+                 } else { console.error("Ticker object NOT AVAILABLE in init!"); }
                  console.log("INIT END");
              } // End of init
 
-            // --- Start ---
-            setupInputListeners(); // Setup listeners ONCE
-            init(); // Run initial game setup
+            // --- Start Game ---
+            setupInputListeners(); // Setup input listeners only once when the script first runs
+            init(); // Initialize and start the first game
 
         } // End of runGame
 
-        // --- DOM Ready ---
-        let runGameCalled = false; function safeRunGame() { if (!runGameCalled) { runGameCalled = true; runGame(); } }
-        if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', safeRunGame); } else { safeRunGame(); }
+        // --- DOM Ready Logic ---
+        let runGameCalled = false;
+        function safeRunGame() { // Prevents multiple calls to runGame
+            if (!runGameCalled) {
+                runGameCalled = true;
+                runGame();
+            }
+        }
+        // Wait for the DOM to be ready before running the game setup
+        if (document.readyState === 'loading') {
+             window.addEventListener('DOMContentLoaded', safeRunGame);
+        } else { // DOM is already ready
+             safeRunGame();
+        }
 
     </script>
 </body>
